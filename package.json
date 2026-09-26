@@ -1,0 +1,14 @@
+{
+  "name": "blockchain-transaction-service-lab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Learning lab for idempotent and confirmation-aware blockchain transaction processing",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "start": "node src/transaction-service.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
