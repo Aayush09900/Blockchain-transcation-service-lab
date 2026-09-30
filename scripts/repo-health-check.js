@@ -41,6 +41,7 @@ const requiredFiles = [
   ".github/workflows/publish-image.yml",
   ".github/workflows/deploy-railway.yml",
   ".github/workflows/pages.yml",
+  ".github/workflows/bootstrap-lockfile.yml",
   ".github/dependabot.yml",
   ".github/CODEOWNERS",
   ".github/pull_request_template.md",
