@@ -37,6 +37,11 @@ const batchSize = Math.max(
 let running = true;
 let processing = false;
 let inFlight = null;
+let batchesProcessed = 0;
+let eventsClaimed = 0;
+let eventsPublished = 0;
+let eventsFailed = 0;
+let lastHeartbeatAt = 0;
 
 async function publishBatch() {
   if (processing) return;
@@ -69,6 +74,21 @@ async function publishBatch() {
           );
         }
       }
+
+      console.log(JSON.stringify({
+        event: "outbox_batch_processed",
+        batchSize,
+        claimed: events.length,
+        published: batchPublished,
+        failed: batchFailed,
+        maxEventLagMs,
+        totals: {
+          batchesProcessed,
+          eventsClaimed,
+          eventsPublished,
+          eventsFailed
+        }
+      }));
     } finally {
       inFlight = null;
       processing = false;
