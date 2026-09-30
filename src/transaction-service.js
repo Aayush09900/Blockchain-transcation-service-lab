@@ -1,4 +1,8 @@
 import { randomUUID } from "node:crypto";
+import {
+  requireNonEmptyString,
+  validateTransactionInput
+} from "./validation.js";
 
 export const TransactionStatus = Object.freeze({
   CREATED: "CREATED",
@@ -14,67 +18,36 @@ const transitions = {
   FAILED: new Set([])
 };
 
-const MAX_IDEMPOTENCY_KEY_LENGTH = 128;
-const MAX_ADDRESS_LENGTH = 128;
-const MAX_AMOUNT_LENGTH = 80;
-
-function requireNonEmptyString(value, field, maxLength) {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new Error(`${field} is required`);
-  }
-
-  const normalized = value.trim();
-
-  if (normalized.length > maxLength) {
-    throw new Error(`${field} exceeds maximum length`);
-  }
-
-  return normalized;
-}
-
-function validateAmount(value) {
-  const amount = requireNonEmptyString(String(value ?? ""), "amount", MAX_AMOUNT_LENGTH);
-
-  // Keep monetary/chain amounts as decimal strings. Never use Number()
-  // for financial values because it can lose precision.
-  if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(amount)) {
-    throw new Error("amount must be a positive decimal string");
-  }
-
-  if (amount === "0" || /^0(?:\.0+)?$/.test(amount)) {
-    throw new Error("amount must be positive");
-  }
-
-  return amount;
-}
-
 export class TransactionService {
   constructor() {
     this.transactions = new Map();
     this.idempotency = new Map();
   }
 
-  submit({ idempotencyKey, from, to, amount }) {
-    const key = requireNonEmptyString(
+  submit(input) {
+    const {
       idempotencyKey,
-      "idempotencyKey",
-      MAX_IDEMPOTENCY_KEY_LENGTH
-    );
-    const sender = requireNonEmptyString(from, "from", MAX_ADDRESS_LENGTH);
-    const receiver = requireNonEmptyString(to, "to", MAX_ADDRESS_LENGTH);
-    const normalizedAmount = validateAmount(amount);
+      from,
+      to,
+      amount
+    } = validateTransactionInput(input);
 
-    const existingId = this.idempotency.get(key);
+    const existingId = this.idempotency.get(idempotencyKey);
 
     if (existingId) {
       const existing = this.get(existingId);
       const sameRequest =
-        existing.from === sender &&
-        existing.to === receiver &&
-        existing.amount === normalizedAmount;
+        existing.from === from &&
+        existing.to === to &&
+        existing.amount === amount;
 
       if (!sameRequest) {
-        throw new Error("idempotency key was already used with a different request");
+        const error = new Error(
+          "idempotency key was already used with a different request"
+        );
+        error.code = "IDEMPOTENCY_CONFLICT";
+        error.statusCode = 409;
+        throw error;
       }
 
       return existing;
@@ -85,10 +58,10 @@ export class TransactionService {
 
     const tx = {
       id,
-      idempotencyKey: key,
-      from: sender,
-      to: receiver,
-      amount: normalizedAmount,
+      idempotencyKey,
+      from,
+      to,
+      amount,
       status: TransactionStatus.CREATED,
       txHash: null,
       failureReason: null,
@@ -98,7 +71,7 @@ export class TransactionService {
     };
 
     this.transactions.set(id, tx);
-    this.idempotency.set(key, id);
+    this.idempotency.set(idempotencyKey, id);
 
     return this.get(id);
   }
@@ -106,8 +79,8 @@ export class TransactionService {
   markSubmitted(id, txHash) {
     const hash = requireNonEmptyString(txHash, "txHash", 256);
     return this.transition(id, TransactionStatus.SUBMITTED, {
-      txHash,
-      attempts: this.transactions.get(id)?.attempts + 1
+      txHash: hash,
+      attempts: (this.transactions.get(id)?.attempts ?? 0) + 1
     });
   }
 
@@ -127,20 +100,40 @@ export class TransactionService {
 
   get(id) {
     const tx = this.transactions.get(id);
-    if (!tx) throw new Error("transaction not found");
+
+    if (!tx) {
+      const error = new Error("transaction not found");
+      error.code = "NOT_FOUND";
+      error.statusCode = 404;
+      throw error;
+    }
+
     return structuredClone(tx);
   }
 
   transition(id, nextStatus, patch = {}) {
     const current = this.transactions.get(id);
-    if (!current) throw new Error("transaction not found");
 
-    if (current.status === nextStatus) return this.get(id);
+    if (!current) {
+      const error = new Error("transaction not found");
+      error.code = "NOT_FOUND";
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (current.status === nextStatus) {
+      return this.get(id);
+    }
 
     const allowed = transitions[current.status];
 
     if (!allowed?.has(nextStatus)) {
-      throw new Error(`invalid transition: ${current.status} -> ${nextStatus}`);
+      const error = new Error(
+        `invalid transition: ${current.status} -> ${nextStatus}`
+      );
+      error.code = "INVALID_TRANSITION";
+      error.statusCode = 409;
+      throw error;
     }
 
     const updated = {
