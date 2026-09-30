@@ -1,0 +1,11 @@
+# Default code ownership
+* @Aayush09900
+
+# Security-sensitive areas
+/src/security.js @Aayush09900
+/src/config.js @Aayush09900
+/src/blockchain-adapter.js @Aayush09900
+/src/blockchain-confirmation-worker.js @Aayush09900
+/contracts/ @Aayush09900
+/.github/workflows/ @Aayush09900
+/SECURITY.md @Aayush09900
