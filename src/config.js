@@ -1,9 +1,18 @@
 import { isAddress } from "ethers";
 
 function positiveInteger(value, field, fallback) {
-  const parsed = Number.parseInt(value ?? String(fallback), 10);
+  const raw = String(value ?? fallback).trim();
 
-  if (!Number.isInteger(parsed) || parsed < 1) {
+  if (!/^\\d+$/.test(raw)) {
+    const error = new Error(`${field} must be a positive integer`);
+    error.code = "CONFIG_ERROR";
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const parsed = Number(raw);
+
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
     const error = new Error(`${field} must be a positive integer`);
     error.code = "CONFIG_ERROR";
     error.statusCode = 500;
