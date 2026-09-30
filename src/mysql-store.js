@@ -171,6 +171,22 @@ export class MySqlTransactionStore {
     return rows.map(mapRow);
   }
 
+  async listPendingBlockchain(limit = 100) {
+    const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
+
+    const [rows] = await this.pool.query(
+      `SELECT *
+       FROM transactions
+       WHERE status IN ('BROADCASTING', 'SUBMITTED')
+         AND tx_hash IS NOT NULL
+       ORDER BY updated_at ASC
+       LIMIT ?`,
+      [safeLimit]
+    );
+
+    return rows.map(mapRow);
+  }
+
   async listSubmitted(limit = 100) {
     const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
 
