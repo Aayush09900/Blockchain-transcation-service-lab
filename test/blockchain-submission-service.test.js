@@ -170,6 +170,35 @@ test("database failure after on-chain broadcast is treated as an unknown outcome
   );
 });
 
+test("claim transition errors are not misclassified as blockchain ambiguity", async () => {
+  const transitionError = new Error("transaction was already claimed");
+  const recorder = {
+    calls: [],
+    transition: async (id, nextStatus) => {
+      recorder.calls.push({ id, nextStatus });
+      throw transitionError;
+    }
+  };
+
+  await assert.rejects(
+    submitViaBlockchain({
+      transaction: BASE_TRANSACTION,
+      blockchain: {
+        async broadcastAnchorTransaction() {
+          throw new Error("must not broadcast after claim failure");
+        }
+      },
+      transitionTransaction: recorder.transition
+    }),
+    (error) => error === transitionError
+  );
+
+  assert.deepEqual(
+    recorder.calls.map((call) => call.nextStatus),
+    ["BROADCASTING"]
+  );
+});
+
 test("blockchain execution is fail-closed when the adapter is disabled", async () => {
   const recorder = createTransitionRecorder();
 
