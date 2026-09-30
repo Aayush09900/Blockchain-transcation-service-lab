@@ -4,7 +4,8 @@ export class MongoAuditStore {
   constructor({
     url = process.env.MONGO_URL,
     databaseName = process.env.MONGO_DATABASE ?? "blockchain_transaction_audit",
-    maxPoolSize = Number.parseInt(process.env.MONGO_MAX_POOL_SIZE ?? "20", 10)
+    maxPoolSize = Number.parseInt(process.env.MONGO_MAX_POOL_SIZE ?? "20", 10),
+    tls = process.env.MONGO_TLS === "true"
   } = {}) {
     if (!url) {
       const error = new Error("MONGO_URL is required");
@@ -17,6 +18,7 @@ export class MongoAuditStore {
       maxPoolSize,
       retryWrites: true,
       retryReads: true,
+      tls,
       appName: "blockchain-transaction-service"
     });
 
