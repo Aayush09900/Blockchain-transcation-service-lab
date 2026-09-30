@@ -39,8 +39,8 @@
 - [x] chain ID validation
 - [x] on-chain anchor contract
 - [x] Hardhat integration tests
-- [ ] RPC failover
-- [ ] Nonce management
+- [x] RPC failover across configured endpoints
+- [x] Process-local nonce management
 - [ ] Fee/gas policy
 - [x] Chain allowlist via exact configured chain ID
 - [x] Confirmation-depth policy
@@ -113,3 +113,18 @@ For databases created before the lease columns existed, apply `db/mysql/002_outb
 When blockchain confirmation is enabled, `CHAIN_CONFIRMATIONS` controls how many blocks must include the mined transaction before the service can move it to `CONFIRMED`.
 
 The default is 1. Production deployments should select a confirmation depth appropriate for the target chain and risk model. This setting reduces the chance of treating a transaction as final immediately after its first block, but it does not by itself implement reorg handling.
+
+
+### RPC failover and signer nonce management
+
+The blockchain adapter accepts the legacy single `CHAIN_RPC_URL` setting and an optional comma-separated `CHAIN_RPC_URLS` set. With multiple endpoints, ethers.js `FallbackProvider` is used so a slow or unavailable endpoint does not become a single point of failure. The provider uses quorum 1 for availability; production operators should use independently managed endpoints and monitor provider health.
+
+The signer is wrapped with ethers.js `NonceManager` so concurrent submissions within one API process are serialized with sequential nonces. This does not provide a distributed nonce lease across multiple API replicas. A real multi-replica deployment still requires one signer worker or a durable database/coordination mechanism for cross-instance nonce ownership.
+
+Example:
+
+```text
+CHAIN_RPC_URL=https://rpc-a.example
+CHAIN_RPC_URLS=https://rpc-a.example,https://rpc-b.example
+CHAIN_ID=11155111
+```
