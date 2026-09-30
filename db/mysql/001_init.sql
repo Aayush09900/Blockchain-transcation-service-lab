@@ -25,11 +25,13 @@ CREATE TABLE IF NOT EXISTS transaction_outbox (
   payload JSON NOT NULL,
   attempts INT UNSIGNED NOT NULL DEFAULT 0,
   last_error VARCHAR(1000) NULL,
+  next_attempt_at TIMESTAMP(6) NULL,
+  dead_lettered_at TIMESTAMP(6) NULL,
   published_at TIMESTAMP(6) NULL,
   created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
   UNIQUE KEY ux_outbox_event_id (event_id),
-  KEY ix_outbox_pending (published_at, id),
+  KEY ix_outbox_pending (published_at, dead_lettered_at, next_attempt_at, id),
   KEY ix_outbox_transaction_id (transaction_id),
 
   CONSTRAINT fk_outbox_transaction
