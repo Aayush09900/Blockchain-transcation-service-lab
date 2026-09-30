@@ -20,7 +20,8 @@ test(
       password: decodeURIComponent(parsed.password),
       database: decodeURIComponent(parsed.pathname.replace(/^\//, "")),
       waitForConnections: true,
-      connectionLimit: 4
+      connectionLimit: 4,
+      multipleStatements: true
     });
 
     const connection = await pool.getConnection();
