@@ -267,3 +267,4 @@ describe("TransactionReceiptAnchor", function () {
 
     assert.equal(confirmed.confirmed, true);
   });
+});
