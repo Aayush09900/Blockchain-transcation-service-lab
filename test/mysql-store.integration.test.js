@@ -8,7 +8,7 @@ const runIntegration = process.env.RUN_INTEGRATION_TESTS === "true";
 const mysqlUrl = process.env.MYSQL_URL ?? "";
 
 test(
-  "MySQL store enforces idempotency, lifecycle, and outbox semantics",
+  "MySQL store enforces idempotency, lifecycle, and atomic outbox leasing",
   { skip: !runIntegration || !mysqlUrl },
   async () => {
     const parsed = new URL(mysqlUrl);
@@ -28,8 +28,14 @@ test(
 
     try {
       const fs = await import("node:fs/promises");
-      const sql = await fs.readFile("db/mysql/001_init.sql", "utf8");
-      await connection.query(sql);
+      const migrationFiles = (await fs.readdir("db/mysql"))
+        .filter((file) => file.endsWith(".sql"))
+        .sort();
+
+      for (const file of migrationFiles) {
+        const sql = await fs.readFile(`db/mysql/${file}`, "utf8");
+        await connection.query(sql);
+      }
     } finally {
       connection.release();
       await pool.end();
@@ -38,15 +44,13 @@ test(
     const store = new MySqlTransactionStore({
       url: mysqlUrl,
       maxPoolSize: 4,
-      ssl: false,
-      workerId: "worker-a"
+      ssl: false
     });
 
     const competingStore = new MySqlTransactionStore({
       url: mysqlUrl,
       maxPoolSize: 4,
-      ssl: false,
-      workerId: "worker-b"
+      ssl: false
     });
 
     const id = randomUUID();
@@ -86,6 +90,9 @@ test(
         /idempotency key was already used/
       );
 
+      const broadcasting = await store.transition(id, "BROADCASTING");
+      assert.equal(broadcasting.status, "BROADCASTING");
+
       const submitted = await store.transition(id, "SUBMITTED", {
         txHash: "0x2222222222222222222222222222222222222222222222222222222222222222"
       });
@@ -95,10 +102,27 @@ test(
 
       const events = await store.claimOutboxBatch(50);
       assert.equal(events.length >= 2, true);
+      assert.ok(events.every((event) => event.lease_token));
 
       const competingEvents = await competingStore.claimOutboxBatch(50);
+      const claimedIds = new Set(events.map((event) => event.id));
+
       assert.equal(
-        competingEvents.some((event) => events.some((claimed) => claimed.id === event.id)),
+        competingEvents.some((event) => claimedIds.has(event.id)),
+        false
+      );
+
+      const published = await store.markOutboxPublished(
+        events[0].id,
+        events[0].lease_token
+      );
+      assert.equal(published, true);
+
+      assert.equal(
+        await store.markOutboxPublished(
+          events[0].id,
+          events[0].lease_token
+        ),
         false
       );
 
@@ -111,7 +135,10 @@ test(
       );
 
       await assert.rejects(
-        () => store.transition(id, "FAILED", { failureReason: "too late" }),
+        () =>
+          store.transition(id, "FAILED", {
+            failureReason: "too late"
+          }),
         /invalid transition/
       );
     } finally {

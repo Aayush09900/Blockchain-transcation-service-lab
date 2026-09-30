@@ -37,7 +37,7 @@ async function publishBatch() {
   processing = true;
 
   try {
-    const events = await mysqlStore.claimOutboxBatch(100);
+    const events = await mysqlStore.claimOutboxBatch(100, 30_000);
 
     for (const event of events) {
       try {
@@ -53,11 +53,12 @@ async function publishBatch() {
         const transaction = await mysqlStore.get(event.transaction_id);
         await mongoStore.upsertSnapshot(transaction);
 
-        await mysqlStore.markOutboxPublished(event.id);
+        await mysqlStore.markOutboxPublished(event.id, event.lease_token);
       } catch (error) {
         await mysqlStore.markOutboxFailed(
           event.id,
-          sanitizeError(error)
+          sanitizeError(error),
+          event.lease_token
         );
       }
     }

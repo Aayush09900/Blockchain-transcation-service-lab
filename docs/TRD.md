@@ -40,11 +40,12 @@ Blockchain ambiguity is a reconciliation state/problem, not an automatic FAILED 
 - Use ethers.js through an adapter.
 - A submitted transaction hash is not proof of confirmation.
 - Confirmation requires receipt verification.
-- External transaction hashes, if supported for lab/reconciliation workflows, must be verified against intended transaction data.
-- Broadcast timeouts must support reconciliation.
+- Normal submission must obtain the transaction hash from the service-controlled blockchain adapter.
+- External transaction hashes are accepted only through a verified reconciliation workflow.
+- Broadcast timeouts and ambiguous RPC errors must remain reconcilable rather than becoming automatic failures.
 
 ## Security
-JWT/bearer authentication, timing-safe credential comparison, validation, CORS allowlisting, secure headers, rate limiting, UUID validation, decimal-string amounts, safe errors, secret protection, dependency scanning, and CodeQL/security automation.
+bearer-token authentication, timing-safe credential comparison, validation, CORS allowlisting, secure headers, rate limiting, UUID validation, decimal-string amounts, safe errors, secret protection, dependency scanning, and CodeQL/security automation.
 
 ## Reliability
 Transactional outbox, retry/lease processing, confirmation polling, reconciliation for uncertain blockchain state, structured logging, and operational metrics.

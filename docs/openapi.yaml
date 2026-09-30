@@ -67,7 +67,23 @@ paths:
           description: Transaction not found
   /v1/transactions/{id}/submit:
     post:
-      summary: Mark a transaction as submitted
+      summary: Submit a transaction through the configured blockchain adapter
+      parameters:
+        - $ref: "#/components/parameters/TransactionId"
+      responses:
+        "200":
+          description: Transaction is already submitted or confirmed
+        "202":
+          description: Broadcast is in progress or requires reconciliation
+        "400":
+          description: Caller-supplied transaction hashes are not accepted
+        "409":
+          description: Invalid lifecycle state
+        "503":
+          description: Blockchain adapter is disabled or unavailable
+  /v1/transactions/{id}/reconcile:
+    post:
+      summary: Reconcile an externally discovered transaction hash
       parameters:
         - $ref: "#/components/parameters/TransactionId"
       requestBody:
@@ -75,10 +91,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SubmitRequest"
+              $ref: "#/components/schemas/ReconcileRequest"
       responses:
         "200":
-          description: Transaction submitted
+          description: Transaction confirmed
+        "202":
+          description: Transaction hash verified but receipt is still pending
+        "409":
+          description: Hash does not match the intended transaction or lifecycle cannot be reconciled
+
   /v1/transactions/{id}/confirm:
     post:
       summary: Confirm a submitted transaction after receipt verification
@@ -173,7 +194,7 @@ components:
         amount:
           type: string
           pattern: "^[0-9]+(\\.[0-9]{1,18})?$"
-    SubmitRequest:
+    ReconcileRequest:
       type: object
       required: [txHash]
       properties:

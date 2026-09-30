@@ -45,8 +45,8 @@
 - [ ] Chain allowlist
 - [ ] Confirmation-depth policy
 - [ ] Reorg handling
-- [ ] Receipt verification
-- [ ] Reconciliation
+- [x] Receipt verification
+- [x] Reconciliation
 
 ## Data consistency
 
@@ -83,7 +83,7 @@ docker compose --profile blockchain up --build
 
 The worker polls MySQL transactions in `SUBMITTED` state, queries the configured Ethereum RPC for receipts, and transitions successful receipts to `CONFIRMED` or reverted receipts to `FAILED`.
 
-The API can still expose the manual `/confirm` endpoint for deterministic operational checks.
+The `/confirm` endpoint is evidence-based and requires the configured blockchain verifier. For uncertain submission state, use `/reconcile` or allow the confirmation worker to recover the transaction.
 
 
 ### Broadcast crash recovery
@@ -97,10 +97,3 @@ CHAIN_RECOVERY_LOOKBACK_BLOCKS=20000
 ```
 
 The lookback must cover the block range in which a crashed broadcast could have been mined. For long-running production systems, set this based on expected outage duration and chain block time, or replace the bounded scan with an indexed event/reconciliation service.
-
-
-### Outbox worker concurrency
-
-The MySQL outbox uses a short lease (`claimed_by` / `claimed_until`) with `FOR UPDATE SKIP LOCKED`. This prevents multiple worker instances from actively processing the same pending event while allowing another worker to recover an abandoned claim after the lease expires.
-
-For databases created before the lease columns existed, apply `db/mysql/002_outbox_leases.sql` during the deployment migration step before starting multiple outbox workers.

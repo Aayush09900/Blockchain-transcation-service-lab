@@ -23,6 +23,7 @@ Blockchain operations are asynchronous and can encounter duplicate requests, RPC
 6. Persist an audit/read model.
 7. Publish reliable outbox events.
 8. Anchor receipt information on-chain.
+9. Recover safely from ambiguous blockchain broadcast outcomes.
 
 ## Lifecycle
 CREATED -> BROADCASTING -> SUBMITTED -> CONFIRMED
@@ -37,6 +38,7 @@ Ambiguous blockchain/RPC outcomes must be reconciled rather than automatically t
 - GET /ready
 - POST /v1/transactions
 - POST /v1/transactions/:id/submit
+- POST /v1/transactions/:id/reconcile
 - POST /v1/transactions/:id/confirm
 - POST /v1/transactions/:id/fail
 - POST /v1/transactions/:id/anchor

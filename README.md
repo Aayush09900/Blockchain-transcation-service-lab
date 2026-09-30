@@ -51,6 +51,7 @@ MySQL2 supports pooled connections, prepared statements, Promise APIs and SSL, w
 │   └── repo-health-check.js
 ├── src/
 │   ├── blockchain-adapter.js
+│   ├── blockchain-submission-service.js
 │   ├── config.js
 │   ├── http-errors.js
 │   ├── http-server.js
@@ -61,14 +62,16 @@ MySQL2 supports pooled connections, prepared statements, Promise APIs and SSL, w
 │   ├── security.js
 │   ├── transaction-service.js
 │   └── validation.js
-├── hardhat-tests/
-│   └── TransactionReceiptAnchor.test.js
 ├── test/
+│   ├── blockchain-adapter.test.js
+│   ├── blockchain-submission.test.js
 │   ├── config.test.js
 │   ├── mongo-audit-store.integration.test.js
 │   ├── mysql-store.integration.test.js
 │   ├── security-vulnerabilities.test.js
 │   └── transaction-service.test.js
+├── hardhat-tests/
+│   └── TransactionReceiptAnchor.test.js
 ├── Dockerfile
 ├── docker-compose.yml
 ├── hardhat.config.js
@@ -80,14 +83,14 @@ MySQL2 supports pooled connections, prepared statements, Promise APIs and SSL, w
 
 ## Architecture documents
 
-The implementation documents maintained in `docs/` are:
+The approved product-to-implementation documents are maintained in `docs/`:
 
-- [Architecture](./docs/ARCHITECTURE.md)
-- [API](./docs/API.md)
-- [Operations](./docs/OPERATIONS.md)
-- [Security Architecture](./docs/SECURITY-ARCHITECTURE.md)
-- [OpenAPI](./docs/openapi.yaml)
-- [Railway Deployment](./docs/RAILWAY-DEPLOYMENT.md)
+- [PRD](./docs/PRD.md)
+- [TRD](./docs/TRD.md)
+- [App Flow](./docs/APP_FLOW.md)
+- [UI/UX Design Brief](./docs/UI_UX.md)
+- [Backend Schema](./docs/BACKEND_SCHEMA.md)
+- [Implementation Plan](./docs/IMPLEMENTATION_PLAN.md)
 
 ## Transaction lifecycle
 
@@ -245,11 +248,23 @@ Content-Type: application/json
 ```
 POST /v1/transactions/:id/submit
 Authorization: Bearer <API_TOKEN>
+```
+
+Submission is service-controlled. The API receives the transaction hash from the configured blockchain adapter; callers cannot supply an arbitrary `txHash` to mark a transaction as submitted.
+
+### Reconcile
+
+```
+POST /v1/transactions/:id/reconcile
+Authorization: Bearer <API_TOKEN>
+Content-Type: application/json
 
 {
   "txHash": "0x..."
 }
 ```
+
+External hashes are accepted only after the service verifies the sender, receiver, amount, and anchor payload.
 
 ### Confirm
 
@@ -271,14 +286,7 @@ Authorization: Bearer <API_TOKEN>
 
 ### On-chain anchor
 
-When the ethers.js adapter is enabled:
-
-```
-POST /v1/transactions/:id/anchor
-Authorization: Bearer <API_TOKEN>
-```
-
-This broadcasts an on-chain receipt anchor and returns HTTP 202 with the transaction hash. The confirmation worker later verifies the mined transaction before the record reaches CONFIRMED. It is not a custody or user-fund transfer function.
+`POST /v1/transactions/:id/anchor` is retained as a backward-compatible alias for service-controlled submission. It is not a custody or user-fund transfer function.
 
 ### Audit events
 

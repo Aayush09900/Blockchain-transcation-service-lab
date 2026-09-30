@@ -7,8 +7,8 @@ import {
 } from "./validation.js";
 
 const transitions = {
-  CREATED: new Set(["BROADCASTING", "SUBMITTED", "FAILED"]),
-  BROADCASTING: new Set(["SUBMITTED", "FAILED" ]),
+  CREATED: new Set(["BROADCASTING", "FAILED"]),
+  BROADCASTING: new Set(["SUBMITTED", "FAILED"]),
   SUBMITTED: new Set(["CONFIRMED", "FAILED"]),
   CONFIRMED: new Set([]),
   FAILED: new Set([])
@@ -18,8 +18,7 @@ export class MySqlTransactionStore {
   constructor({
     url = process.env.MYSQL_URL,
     maxPoolSize = 10,
-    ssl = process.env.MYSQL_SSL === "true",
-    workerId = randomUUID()
+    ssl = process.env.MYSQL_SSL === "true"
   } = {}) {
     if (!url) {
       const error = new Error("MYSQL_URL is required");
@@ -29,8 +28,6 @@ export class MySqlTransactionStore {
     }
 
     const parsed = new URL(url);
-
-    this.workerId = String(workerId).slice(0, 64);
 
     this.pool = mysql.createPool({
       host: parsed.hostname,
@@ -301,21 +298,25 @@ export class MySqlTransactionStore {
     }
   }
 
-  async claimOutboxBatch(limit = 50) {
+  async claimOutboxBatch(limit = 50, leaseMs = 30_000) {
     const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 500));
+    const safeLeaseMs = Math.max(
+      1_000,
+      Math.min(Number(leaseMs) || 30_000, 300_000)
+    );
+
     const connection = await this.pool.getConnection();
-    const leaseUntil = new Date(Date.now() + 60_000);
 
     try {
       await connection.beginTransaction();
 
       const [rows] = await connection.query(
-        `SELECT id
+        `SELECT id, event_id, transaction_id, event_type, payload, attempts
          FROM transaction_outbox
          WHERE published_at IS NULL
            AND dead_lettered_at IS NULL
            AND (next_attempt_at IS NULL OR next_attempt_at <= CURRENT_TIMESTAMP(6))
-           AND (claimed_until IS NULL OR claimed_until < CURRENT_TIMESTAMP(6))
+           AND (lease_expires_at IS NULL OR lease_expires_at <= CURRENT_TIMESTAMP(6))
          ORDER BY id ASC
          LIMIT ?
          FOR UPDATE SKIP LOCKED`,
@@ -327,32 +328,25 @@ export class MySqlTransactionStore {
         return [];
       }
 
+      const leaseToken = randomUUID();
+      const leaseExpiresAt = new Date(Date.now() + safeLeaseMs);
+
       for (const row of rows) {
         await connection.execute(
           `UPDATE transaction_outbox
-           SET claimed_by = ?,
-               claimed_until = ?
+           SET lease_token = ?,
+               lease_expires_at = ?
            WHERE id = ?
              AND published_at IS NULL
              AND dead_lettered_at IS NULL`,
-          [this.workerId, leaseUntil, row.id]
+          [leaseToken, leaseExpiresAt, row.id]
         );
+
+        row.lease_token = leaseToken;
       }
 
-      const ids = rows.map((row) => row.id);
-      const placeholders = ids.map(() => "?").join(", ");
-
-      const [claimedRows] = await connection.query(
-        `SELECT id, event_id, transaction_id, event_type, payload, claimed_by
-         FROM transaction_outbox
-         WHERE id IN (${placeholders})
-           AND claimed_by = ?
-         ORDER BY id ASC`,
-        [...ids, this.workerId]
-      );
-
       await connection.commit();
-      return claimedRows;
+      return rows;
     } catch (error) {
       await connection.rollback().catch(() => {});
       throw error;
@@ -361,78 +355,75 @@ export class MySqlTransactionStore {
     }
   }
 
-  async markOutboxPublished(id) {
-    await this.pool.execute(
+  async markOutboxPublished(id, leaseToken) {
+    const [result] = await this.pool.execute(
       `UPDATE transaction_outbox
        SET published_at = CURRENT_TIMESTAMP(6),
            attempts = attempts + 1,
            last_error = NULL,
            next_attempt_at = NULL,
-           claimed_by = NULL,
-           claimed_until = NULL
+           lease_token = NULL,
+           lease_expires_at = NULL
        WHERE id = ?
          AND published_at IS NULL
-         AND claimed_by = ?`,
-      [id, this.workerId]
+         AND lease_token = ?`,
+      [id, leaseToken]
     );
+
+    return result.affectedRows === 1;
   }
 
-  async markOutboxFailed(id, message) {
+  async markOutboxFailed(id, message, leaseToken) {
     const [rows] = await this.pool.execute(
       `SELECT attempts
        FROM transaction_outbox
        WHERE id = ?
          AND published_at IS NULL
-         AND claimed_by = ?`,
-      [id, this.workerId]
+         AND lease_token = ?`,
+      [id, leaseToken]
     );
 
-    if (rows.length === 0) return;
+    if (rows.length === 0) return false;
 
     const attempts = Number(rows[0].attempts) + 1;
     const maxAttempts = 10;
+    const boundedMessage = String(message).slice(0, 1000);
 
     if (attempts >= maxAttempts) {
-      await this.pool.execute(
+      const [result] = await this.pool.execute(
         `UPDATE transaction_outbox
          SET attempts = ?,
              last_error = ?,
              dead_lettered_at = CURRENT_TIMESTAMP(6),
              next_attempt_at = NULL,
-             claimed_by = NULL,
-             claimed_until = NULL
+             lease_token = NULL,
+             lease_expires_at = NULL
          WHERE id = ?
            AND published_at IS NULL
-           AND claimed_by = ?`,
-        [attempts, String(message).slice(0, 1000), id, this.workerId]
+           AND lease_token = ?`,
+        [attempts, boundedMessage, id, leaseToken]
       );
-      return;
+      return result.affectedRows === 1;
     }
 
     const delaySeconds = Math.min(3600, 2 ** Math.min(attempts, 12));
     const nextAttemptAt = new Date(Date.now() + delaySeconds * 1000);
 
-    await this.pool.execute(
+    const [result] = await this.pool.execute(
       `UPDATE transaction_outbox
        SET attempts = ?,
            last_error = ?,
            next_attempt_at = ?,
-           claimed_by = NULL,
-           claimed_until = NULL
+           lease_token = NULL,
+           lease_expires_at = NULL
        WHERE id = ?
          AND published_at IS NULL
-         AND claimed_by = ?`,
-      [
-        attempts,
-        String(message).slice(0, 1000),
-        nextAttemptAt,
-        id,
-        this.workerId
-      ]
+         AND lease_token = ?`,
+      [attempts, boundedMessage, nextAttemptAt, id, leaseToken]
     );
-  }
-}
 
+    return result.affectedRows === 1;
+  }
 }
 
 function canonicalDecimal(value) {

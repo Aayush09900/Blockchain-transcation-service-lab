@@ -14,20 +14,20 @@ Same key + same request -> return original result.
 Same key + different request -> reject with idempotency conflict.
 
 ## Submit
-Load transaction -> validate lifecycle -> lock -> blockchain adapter -> ethers.js/RPC -> receive transaction hash -> persist SUBMITTED -> publish event.
+Load transaction -> atomically claim `BROADCASTING` -> blockchain adapter -> ethers.js/RPC -> receive service-generated transaction hash -> persist `SUBMITTED` -> publish event.
 
-Production execution should obtain the hash from the service's blockchain broadcast operation rather than trusting an arbitrary caller-supplied hash. External hashes may only be accepted through an explicit verified reconciliation/demo path.
+Repeated submit requests do not rebroadcast a `BROADCASTING` transaction. Ambiguous RPC results remain `BROADCASTING` until reconciliation.
 
-## Confirmation
-SUBMITTED -> query blockchain receipt -> verify receipt -> persist block/receipt evidence -> CONFIRMED.
+## Reconciliation
+`BROADCASTING` -> discover or receive transaction hash -> verify sender/receiver/amount/anchor payload -> `SUBMITTED` or `CONFIRMED`.
 
-No receipt or temporary RPC failure does not by itself mean FAILED.
+External hashes are accepted only through this verified reconciliation path.
 
 ## Failure
 Known and verified failure -> FAILED. Unknown blockchain outcome -> reconciliation workflow.
 
 ## Anchor
-Confirmed transaction -> prepare receipt data -> TransactionReceiptAnchor contract -> persist separate anchor transaction hash and block data.
+Created transaction -> service-controlled blockchain adapter -> TransactionReceiptAnchor contract -> `BROADCASTING` -> `SUBMITTED` -> asynchronous receipt verification.
 
 ## Outbox
 MySQL state/event/outbox commit -> worker claims event -> MongoDB write -> mark processed. Failed delivery is retried with bounded backoff.

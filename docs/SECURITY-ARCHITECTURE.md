@@ -47,7 +47,7 @@ Controls:
 - explicit contract address
 - HTTPS RPC in production
 - pinned chain ID
-- verified transaction calldata/value/sender/receiver before confirmation
+- verified transaction calldata/value/sender/receiver before submission reconciliation and confirmation
 - private key supplied only through secret configuration
 - no secrets stored in Git
 

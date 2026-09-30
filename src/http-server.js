@@ -4,6 +4,7 @@ import { parseEther } from "ethers";
 import { MySqlTransactionStore } from "./mysql-store.js";
 import { MongoAuditStore } from "./mongo-audit-store.js";
 import { EthersBlockchainAdapter } from "./blockchain-adapter.js";
+import { BlockchainSubmissionService } from "./blockchain-submission-service.js";
 import {
   applySecurityHeaders,
   authenticate,
@@ -45,6 +46,13 @@ const blockchain = config.blockchainEnabled
       privateKey: config.signerPrivateKey,
       contractAddress: config.anchorContractAddress,
       chainId: config.chainId
+    })
+  : null;
+
+const blockchainSubmission = blockchain
+  ? new BlockchainSubmissionService({
+      store: mysqlStore,
+      blockchain
     })
   : null;
 
@@ -252,13 +260,36 @@ const server = http.createServer(async (request, response) => {
       assertJsonRequest(request);
 
       const body = await readJson(request);
-      const transaction = await transitionTransaction(
-        parseTransactionId(submitMatch[1]),
-        "SUBMITTED",
-        { txHash: validateTransactionHash(body.txHash) }
+
+      if (Object.prototype.hasOwnProperty.call(body, "txHash")) {
+        const error = new Error(
+          "caller-supplied txHash is not accepted by the submit endpoint; use reconciliation"
+        );
+        error.code = "TX_HASH_NOT_ALLOWED";
+        error.statusCode = 400;
+        throw error;
+      }
+
+      if (!blockchainSubmission) {
+        const error = new Error("blockchain adapter is disabled");
+        error.code = "BLOCKCHAIN_DISABLED";
+        error.statusCode = 503;
+        throw error;
+      }
+
+      const result = await blockchainSubmission.submit(
+        parseTransactionId(submitMatch[1])
       );
 
-      json(response, requestId, 200, transaction);
+      if (result.outcome === "SUBMITTED" || result.outcome === "CONFIRMED") {
+        json(response, requestId, 200, result.transaction);
+        return;
+      }
+
+      json(response, requestId, 202, {
+        transaction: result.transaction,
+        reconciliationRequired: Boolean(result.reconciliationRequired)
+      });
       return;
     }
 
@@ -268,35 +299,52 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "POST" && confirmMatch) {
       const transactionId = parseTransactionId(confirmMatch[1]);
+
+      if (!blockchain) {
+        const error = new Error(
+          "blockchain verification is required for confirmation"
+        );
+        error.code = "BLOCKCHAIN_DISABLED";
+        error.statusCode = 503;
+        throw error;
+      }
+
       const transaction = await getTransaction(transactionId);
 
-      if (blockchain && transaction.txHash) {
-        const verification = await blockchain.verifySubmittedTransaction({
-          transactionId,
-          sender: transaction.from,
-          receiver: transaction.to,
-          amountWei: parseEther(transaction.amount),
-          txHash: transaction.txHash
-        });
+      if (!transaction.txHash) {
+        const error = new Error(
+          "transaction does not have a submitted transaction hash"
+        );
+        error.code = "NOT_SUBMITTED";
+        error.statusCode = 409;
+        throw error;
+      }
 
-        if (!verification.confirmed) {
-          if (verification.reverted) {
-            await transitionTransaction(transactionId, "FAILED", {
-              failureReason: "blockchain transaction reverted"
-            });
-          }
+      const verification = await blockchain.verifySubmittedTransaction({
+        transactionId,
+        sender: transaction.from,
+        receiver: transaction.to,
+        amountWei: parseEther(transaction.amount),
+        txHash: transaction.txHash
+      });
 
-          const error = new Error(
-            verification.reverted
-              ? "blockchain transaction reverted"
-              : "blockchain transaction is not confirmed yet"
-          );
-          error.code = verification.reverted
-            ? "BLOCKCHAIN_REVERTED"
-            : "NOT_CONFIRMED";
-          error.statusCode = 409;
-          throw error;
+      if (!verification.confirmed) {
+        if (verification.reverted) {
+          await transitionTransaction(transactionId, "FAILED", {
+            failureReason: "blockchain transaction reverted"
+          });
         }
+
+        const error = new Error(
+          verification.reverted
+            ? "blockchain transaction reverted"
+            : "blockchain transaction is not confirmed yet"
+        );
+        error.code = verification.reverted
+          ? "BLOCKCHAIN_REVERTED"
+          : "NOT_CONFIRMED";
+        error.statusCode = 409;
+        throw error;
       }
 
       const confirmed = await transitionTransaction(
@@ -330,83 +378,65 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
-    const anchorMatch = pathname.match(
-      /^\/v1\/transactions\/([^/]+)\/anchor$/
+    const reconcileMatch = pathname.match(
+      /^\/v1\/transactions\/([^/]+)\/reconcile$/
     );
 
-    if (request.method === "POST" && anchorMatch) {
-      if (!blockchain) {
+    if (request.method === "POST" && reconcileMatch) {
+      assertJsonRequest(request);
+
+      if (!blockchainSubmission) {
         const error = new Error("blockchain adapter is disabled");
         error.code = "BLOCKCHAIN_DISABLED";
         error.statusCode = 503;
         throw error;
       }
 
-      const transaction = await getTransaction(
-        parseTransactionId(anchorMatch[1])
+      const body = await readJson(request);
+
+      const result = await blockchainSubmission.reconcile(
+        parseTransactionId(reconcileMatch[1]),
+        validateTransactionHash(body.txHash)
       );
 
-      if (transaction.status !== "CREATED") {
-        const error = new Error(
-          `transaction cannot be anchored from status ${transaction.status}`
-        );
-        error.code = "INVALID_TRANSITION";
-        error.statusCode = 409;
+      json(
+        response,
+        requestId,
+        result.outcome === "CONFIRMED" ? 200 : 202,
+        {
+          transaction: result.transaction,
+          reconciliationRequired: Boolean(result.reconciliationRequired)
+        }
+      );
+      return;
+    }
+
+    const anchorMatch = pathname.match(
+      /^\/v1\/transactions\/([^/]+)\/anchor$/
+    );
+
+    if (request.method === "POST" && anchorMatch) {
+      if (!blockchainSubmission) {
+        const error = new Error("blockchain adapter is disabled");
+        error.code = "BLOCKCHAIN_DISABLED";
+        error.statusCode = 503;
         throw error;
       }
 
-      const broadcasting = await transitionTransaction(
-        transaction.id,
-        "BROADCASTING"
+      const result = await blockchainSubmission.submit(
+        parseTransactionId(anchorMatch[1])
       );
 
-      let result;
-
-      try {
-        result = await blockchain.broadcastAnchorTransaction({
-          transactionId: broadcasting.id,
-          sender: broadcasting.from,
-          receiver: broadcasting.to,
-          amountWei: parseEther(broadcasting.amount)
-        });
-      } catch (blockchainError) {
-        await transitionTransaction(
-          broadcasting.id,
-          "FAILED",
-          {
-            failureReason:
-              blockchainError instanceof Error
-                ? blockchainError.message
-                : String(blockchainError)
-          }
-        );
-
-        throw blockchainError;
-      }
-
-      try {
-        const updated = await transitionTransaction(
-          broadcasting.id,
-          "SUBMITTED",
-          { txHash: result.txHash }
-        );
-
-        json(response, requestId, 202, {
-          transaction: updated,
-          blockchain: result,
-          nextStep: `POST /v1/transactions/${broadcasting.id}/confirm after the transaction is mined`
-        });
+      if (result.outcome === "SUBMITTED" || result.outcome === "CONFIRMED") {
+        json(response, requestId, 200, result.transaction);
         return;
-      } catch (persistenceError) {
-        console.error(JSON.stringify({
-          event: "blockchain_broadcast_persistence_error",
-          requestId,
-          transactionId: broadcasting.id,
-          txHash: result.txHash,
-          message: sanitizeError(persistenceError)
-        }));
-        throw persistenceError;
       }
+
+      json(response, requestId, 202, {
+        transaction: result.transaction,
+        reconciliationRequired: Boolean(result.reconciliationRequired)
+      });
+      return;
     }
 
     const match = pathname.match(/^\/v1\/transactions\/([^/]+)$/);

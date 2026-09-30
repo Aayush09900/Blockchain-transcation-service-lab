@@ -45,6 +45,18 @@ Transaction IDs are restricted to UUID format.
 
 ## POST /v1/transactions/:id/submit
 
+The service controls blockchain submission. The caller does not supply a transaction hash.
+
+Moves:
+
+`CREATED -> BROADCASTING -> SUBMITTED`
+
+The endpoint is idempotent: `BROADCASTING` returns 202, `SUBMITTED`/`CONFIRMED` returns the existing state, deterministic blockchain rejection becomes `FAILED`, and ambiguous RPC errors remain `BROADCASTING` for reconciliation.
+
+## POST /v1/transactions/:id/reconcile
+
+Operational recovery endpoint for an externally discovered transaction hash.
+
 Body:
 
 ```json
@@ -53,9 +65,7 @@ Body:
 }
 ```
 
-Moves:
-
-`CREATED -> SUBMITTED`
+The hash is verified against the intended transaction before it can be accepted.
 
 ## POST /v1/transactions/:id/confirm
 
@@ -79,17 +89,11 @@ Body:
 
 Moves:
 
-`CREATED|SUBMITTED -> FAILED`
+`CREATED|BROADCASTING|SUBMITTED -> FAILED`
 
 ## POST /v1/transactions/:id/anchor
 
-Enabled only when the ethers.js blockchain adapter is configured.
-
-The service uses the configured signer and calls the on-chain receipt anchor contract.
-
-The operation broadcasts the anchor transaction and returns the transaction hash immediately with HTTP `202`.
-
-The transaction remains `SUBMITTED` until the on-chain receipt can be verified through the confirm endpoint.
+Backward-compatible alias for service-controlled submission. The configured signer calls the on-chain receipt anchor contract, and the caller cannot supply the transaction hash.
 
 This is a blockchain audit anchor, not a user-fund transfer endpoint.
 

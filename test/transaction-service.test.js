@@ -61,6 +61,7 @@ test("moves CREATED to SUBMITTED with tx hash", () => {
     amount: "100"
   });
 
+  service.markBroadcasting(tx.id);
   const submitted = service.markSubmitted(tx.id, "0x1111111111111111111111111111111111111111111111111111111111111111");
   assert.equal(submitted.status, TransactionStatus.SUBMITTED);
   assert.equal(submitted.txHash, "0x1111111111111111111111111111111111111111111111111111111111111111");
@@ -75,6 +76,7 @@ test("moves SUBMITTED to CONFIRMED", () => {
     amount: "100"
   });
 
+  service.markBroadcasting(tx.id);
   service.markSubmitted(tx.id, "0x1111111111111111111111111111111111111111111111111111111111111111");
   const confirmed = service.markConfirmed(tx.id);
 
@@ -90,6 +92,7 @@ test("does not allow a confirmed transaction to become failed", () => {
     amount: "100"
   });
 
+  service.markBroadcasting(tx.id);
   service.markSubmitted(tx.id, "0x1111111111111111111111111111111111111111111111111111111111111111");
   service.markConfirmed(tx.id);
 
@@ -108,6 +111,7 @@ test("allows a broadcast failure from SUBMITTED", () => {
     amount: "100"
   });
 
+  service.markBroadcasting(tx.id);
   service.markSubmitted(tx.id, "0x1111111111111111111111111111111111111111111111111111111111111111");
   const failed = service.markFailed(tx.id, "RPC timeout");
 

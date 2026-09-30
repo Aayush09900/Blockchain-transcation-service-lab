@@ -10,16 +10,16 @@ Add PRD, TRD, APP FLOW, UI/UX, BACKEND SCHEMA, and IMPLEMENTATION PLAN to the re
 Add package-lock.json and use npm ci in CI/container builds where appropriate.
 
 ## Phase 3 — Verified submission
-Replace production-path trust in caller-supplied transaction hashes with service-controlled broadcast or explicit verified reconciliation mode.
+Completed: normal submission is service-controlled; caller-supplied hashes are rejected on `/submit` and supported only by verified reconciliation.
 
 ## Phase 4 — Unknown-result reconciliation
-Introduce a safe path for RPC/broadcast ambiguity. Do not mark uncertain transactions FAILED without blockchain evidence.
+Completed: ambiguous broadcast errors remain `BROADCASTING`; worker/event recovery and the reconciliation endpoint provide a safe recovery path.
 
 ## Phase 5 — Atomic outbox claiming
-Implement database-safe claim/lease processing for multi-worker operation.
+Completed: MySQL `FOR UPDATE SKIP LOCKED` claims events with a lease token and expiry.
 
 ## Phase 6 — Confirmation tests
-Add integration coverage for pending receipts, successful receipts, reverted receipts, RPC errors, repeated polling, and terminal-state protection.
+Completed: submission/reconciliation unit coverage, blockchain intent validation coverage, and MySQL lifecycle/outbox lease integration coverage are in place.
 
 ## Phase 7 — Security regression
 Run validation, authentication, authorization, rate-limit, CORS, secret, dependency, and CodeQL checks.

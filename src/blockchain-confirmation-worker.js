@@ -83,6 +83,13 @@ async function reconcileBatch() {
           anchorContractAddress
         });
 
+        if (verification.reverted) {
+          await mysqlStore.transition(transaction.id, "FAILED", {
+            failureReason: "broadcast recovery transaction reverted"
+          });
+          continue;
+        }
+
         if (verification.confirmed) {
           await mysqlStore.transition(transaction.id, "SUBMITTED", {
             txHash: recovered.txHash

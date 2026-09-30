@@ -14,7 +14,7 @@ The repository currently contains:
 Idempotency information is stored on transactions in the current implementation.
 
 ## Transaction fields
-Core data includes transaction UUID, status, amount, asset, sender/recipient, chain ID, tx hash, block information, contract/anchor information, error fields, request correlation, and timestamps.
+The current authoritative transaction row stores transaction UUID, idempotency key, sender, receiver, amount, lifecycle status, transaction hash, failure reason, attempt count, and timestamps.
 
 Amounts are represented as decimal strings/integer-compatible database values rather than JavaScript floating-point values.
 
@@ -27,21 +27,13 @@ Durable events should describe status changes and blockchain evidence. The curre
 The idempotency key is constrained at database level. Reusing a key with a different normalized request must be rejected.
 
 ## Outbox
-Current outbox records carry event type, transaction/aggregate identity, payload, attempts, scheduling/processing information, and error information. Event claiming must be atomic or lease-based before multi-worker production deployment.
+Current outbox records carry event type, transaction/aggregate identity, payload, attempts, scheduling/processing information, error information, and a lease token/expiry. Claims use MySQL row locking with `SKIP LOCKED`. Publication/failure updates require the lease token so a stale worker cannot finalize an event after another worker reclaims it.
 
 ## MongoDB
 Audit documents contain transaction identity, current read-model status, blockchain evidence, and ordered lifecycle events. MongoDB writes should be idempotent using stable event identifiers.
 
 ## Blockchain evidence
-Keep original transaction fields separate from receipt-anchor transaction fields:
-- txHash
-- blockNumber
-- blockHash
-- receiptStatus
-- gas information
-- anchorTxHash
-- anchorBlockNumber
-- anchorContractAddress
+The current MySQL schema persists `txHash` only. The adapter verifies receipt/block evidence at runtime but does not yet persist block number, block hash, gas, or separate anchor evidence fields. Persisting those fields is a future schema expansion if reporting/audit requirements require it.
 
 ## Integrity
 State transition + durable event/outbox creation should commit atomically in MySQL. MongoDB failure must not invalidate an already committed authoritative transaction.
