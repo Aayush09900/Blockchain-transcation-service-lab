@@ -223,9 +223,6 @@ describe("TransactionReceiptAnchor", function () {
 
     assert.equal(await contract.anchorer(), anchorer.address);
   });
-});
-
-
   it("waits for the configured confirmation depth before confirming", async function () {
     const [sender, receiver] = await ethers.getSigners();
 
