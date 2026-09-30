@@ -49,6 +49,7 @@ export function loadConfig(env = process.env) {
   const signerPrivateKey = String(
     env.CHAIN_SIGNER_PRIVATE_KEY ?? ""
   ).trim();
+  const mysqlSsl = booleanValue(env.MYSQL_SSL, production);
 
   if (production && !apiToken) {
     const error = new Error("API_TOKEN is required in production");
@@ -137,6 +138,7 @@ export function loadConfig(env = process.env) {
       "MYSQL_POOL_MAX",
       10
     ),
+    mysqlSsl,
     mongoMaxPoolSize: positiveInteger(
       env.MONGO_MAX_POOL_SIZE,
       "MONGO_MAX_POOL_SIZE",
