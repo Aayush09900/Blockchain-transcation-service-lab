@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
 import { network } from "hardhat";
-import {
-  EthersBlockchainAdapter
-} from "../../src/blockchain-adapter.js";
+import { EthersBlockchainAdapter } from "../../src/blockchain-adapter.js";
 
 const { ethers } = await network.create();
 
@@ -68,7 +66,6 @@ describe("TransactionReceiptAnchor", function () {
       })
     );
   });
-});
 
   it("only allows the configured anchorer to write records", async function () {
     const [anchorer, attacker, receiver] = await ethers.getSigners();
@@ -89,3 +86,4 @@ describe("TransactionReceiptAnchor", function () {
 
     assert.equal(await contract.anchorer(), anchorer.address);
   });
+});
