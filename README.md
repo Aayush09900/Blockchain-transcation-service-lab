@@ -276,6 +276,12 @@ Authorization: Bearer <API_TOKEN>
 }
 ```
 
+### Blockchain RPC configuration
+
+The service accepts a primary `CHAIN_RPC_URL` and optional comma-separated backup endpoints in `CHAIN_RPC_URLS`. The adapter uses ethers `FallbackProvider` for provider resilience and `NonceManager` for serialized signer nonce allocation within one process. Every configured RPC endpoint is checked against the configured chain ID before blockchain execution is considered ready. citeturn742881view0turn402323view1
+
+Cross-instance nonce coordination is still required before multiple replicas share the same signer account.
+
 ### On-chain anchor
 
 When the ethers.js adapter is enabled:
