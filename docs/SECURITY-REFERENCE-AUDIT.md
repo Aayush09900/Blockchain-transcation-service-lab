@@ -30,10 +30,10 @@ The reference devcontainer firewall is not copied into the runtime. This service
 
 ## Remaining transaction-service security work
 
-- reconciliation after ambiguous RPC results
-- RPC failover and nonce coordination
 - reorg handling
 - distributed rate limiting
+- cross-instance nonce coordination
+- durable reconciliation beyond the bounded broadcast event lookback
 - managed secret storage
 - monitoring and disaster recovery
 - independent security review
