@@ -175,6 +175,7 @@ test("adapter uses fallback RPC provider and managed signer nonce state", () => 
   });
 
   assert.equal(adapter.provider.constructor.name, "FallbackProvider");
+  assert.equal(adapter.provider.providerConfigs.length, 3);
   assert.equal(adapter.signer.constructor.name, "NonceManager");
 });
 
