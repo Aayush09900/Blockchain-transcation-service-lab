@@ -52,6 +52,9 @@ export function loadConfig(env = process.env) {
   const signerPrivateKey = String(
     env.CHAIN_SIGNER_PRIVATE_KEY ?? ""
   ).trim();
+  const chainConfirmations = env.CHAIN_CONFIRMATIONS
+    ? Number(env.CHAIN_CONFIRMATIONS)
+    : 1;
 
   const mysqlSsl = booleanValue(env.MYSQL_SSL, production);
   const mongoTls = booleanValue(env.MONGO_TLS, production);
@@ -92,6 +95,10 @@ export function loadConfig(env = process.env) {
 
     if (!Number.isInteger(chainId) || chainId < 1) {
       throw configError("CHAIN_ID must be a positive integer");
+    }
+
+    if (!Number.isInteger(chainConfirmations) || chainConfirmations < 1 || chainConfirmations > 1000) {
+      throw configError("CHAIN_CONFIRMATIONS must be an integer between 1 and 1000");
     }
 
     if (!isAddress(anchorContractAddress)) {
@@ -151,6 +158,7 @@ export function loadConfig(env = process.env) {
     blockchainEnabled,
     chainRpcUrl,
     chainId,
+    chainConfirmations,
     anchorContractAddress,
     signerPrivateKey
   });
