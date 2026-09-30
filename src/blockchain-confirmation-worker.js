@@ -56,6 +56,13 @@ const recoveryLookbackBlocks = Math.max(
 let running = true;
 let processing = false;
 let inFlight = null;
+let batchesProcessed = 0;
+let recoveredCount = 0;
+let confirmedCount = 0;
+let failedCount = 0;
+let pendingCount = 0;
+let verificationErrorCount = 0;
+let rpcErrorCount = 0;
 
 async function reconcileBatch() {
   if (processing) return;
@@ -64,6 +71,9 @@ async function reconcileBatch() {
   inFlight = (async () => {
     try {
       const broadcasting = await mysqlStore.listBroadcasting(batchSize);
+      const submittedBefore = await mysqlStore.listSubmitted(batchSize);
+
+      batchesProcessed += 1;
 
       for (const transaction of broadcasting) {
         try {
@@ -71,7 +81,22 @@ async function reconcileBatch() {
             transactionId: transaction.id,
             contractAddress: anchorContractAddress,
             lookbackBlocks: recoveryLookbackBlocks
-          });
+          console.log(JSON.stringify({
+        event: "blockchain_confirmation_batch_processed",
+        batchSize,
+        broadcasting: broadcasting.length,
+        submitted: submittedBefore.length,
+        totals: {
+          batchesProcessed,
+          recoveredCount,
+          confirmedCount,
+          failedCount,
+          pendingCount,
+          verificationErrorCount,
+          rpcErrorCount
+        }
+      }));
+      });
 
           if (!recovered) {
             continue;
@@ -90,13 +115,23 @@ async function reconcileBatch() {
             await mysqlStore.transition(transaction.id, "SUBMITTED", {
               txHash: recovered.txHash
             });
+            recoveredCount += 1;
+          } else {
+            pendingCount += 1;
           }
         } catch (error) {
           if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
             await mysqlStore.transition(transaction.id, "FAILED", {
               failureReason: "broadcast recovery verification failed"
             });
+            failedCount += 1;
             continue;
+          }
+
+          if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
+            verificationErrorCount += 1;
+          } else {
+            rpcErrorCount += 1;
           }
 
           console.error(JSON.stringify({
@@ -125,18 +160,36 @@ async function reconcileBatch() {
               await mysqlStore.transition(transaction.id, "FAILED", {
                 failureReason: "blockchain transaction reverted"
               });
+              failedCount += 1;
+            } else {
+              pendingCount += 1;
             }
             continue;
           }
 
           await mysqlStore.transition(transaction.id, "CONFIRMED");
+          confirmedCount += 1;
+
+          console.log(JSON.stringify({
+            event: "blockchain_confirmation",
+            transactionId: transaction.id,
+            txHash: transaction.txHash,
+            confirmationLatencyMs: Math.max(
+              0,
+              Date.now() - new Date(transaction.updatedAt).getTime()
+            )
+          }));
         } catch (error) {
           if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
+            verificationErrorCount += 1;
             await mysqlStore.transition(transaction.id, "FAILED", {
               failureReason: "blockchain transaction verification failed"
             });
+            failedCount += 1;
             continue;
           }
+
+          rpcErrorCount += 1;
 
           console.error(JSON.stringify({
             event: "blockchain_confirmation_error",
@@ -165,6 +218,22 @@ async function loop() {
         message: sanitizeError(error)
       }));
     }
+
+    console.log(JSON.stringify({
+      event: "blockchain_confirmation_worker_heartbeat",
+      running,
+      processing,
+      timestamp: new Date().toISOString(),
+      totals: {
+        batchesProcessed,
+        recoveredCount,
+        confirmedCount,
+        failedCount,
+        pendingCount,
+        verificationErrorCount,
+        rpcErrorCount
+      }
+    }));
 
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
