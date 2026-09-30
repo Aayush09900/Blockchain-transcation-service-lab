@@ -49,7 +49,10 @@ const blockchain = config.blockchainEnabled
       privateKey: config.signerPrivateKey,
       contractAddress: config.anchorContractAddress,
       chainId: config.chainId,
-      confirmationDepth: config.chainConfirmations
+      confirmationDepth: config.chainConfirmations,
+      gasLimit: config.chainGasLimit,
+      maxFeePerGas: config.chainMaxFeePerGas,
+      maxPriorityFeePerGas: config.chainMaxPriorityFeePerGas
     })
   : null;
 
