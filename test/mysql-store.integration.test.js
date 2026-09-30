@@ -143,9 +143,18 @@ test(
 
       await competingStore.markOutboxPublished(reclaimedEvent.id);
 
-      const confirmed = await store.transition(id, "CONFIRMED");
+      const confirmed = await store.transition(id, "CONFIRMED", {
+        confirmedBlockNumber: 123,
+        confirmedBlockHash:
+          "0x3333333333333333333333333333333333333333333333333333333333333333"
+      });
 
       assert.equal(confirmed.status, "CONFIRMED");
+      assert.equal(confirmed.confirmedBlockNumber, 123);
+      assert.equal(
+        confirmed.confirmedBlockHash,
+        "0x3333333333333333333333333333333333333333333333333333333333333333"
+      );
       assert.equal(
         confirmed.txHash,
         "0x2222222222222222222222222222222222222222222222222222222222222222"
