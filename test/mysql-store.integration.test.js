@@ -132,6 +132,17 @@ test(
 
       await store.markOutboxPublished(reclaimedEvent.id);
 
+      await poolForTest(mysqlUrl, async (testPool) => {
+        const [rows] = await testPool.execute(
+          "SELECT claimed_by, published_at FROM transaction_outbox WHERE id = ?",
+          [reclaimedEvent.id]
+        );
+        assert.equal(rows[0]?.claimed_by, "worker-b");
+        assert.equal(rows[0]?.published_at, null);
+      });
+
+      await competingStore.markOutboxPublished(reclaimedEvent.id);
+
       const confirmed = await store.transition(id, "CONFIRMED");
 
       assert.equal(confirmed.status, "CONFIRMED");
