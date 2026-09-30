@@ -187,6 +187,41 @@ test("production CORS origins must use HTTPS and cannot contain credentials", ()
 });
 
 
+test("blockchain RPC URLs are normalized and validated as a set", () => {
+  const base = {
+    NODE_ENV: "production",
+    API_TOKEN: "long-test-token-123456789012345678901234",
+    MYSQL_URL: "mysql://example",
+    MONGO_URL: "mongodb://example",
+    BLOCKCHAIN_ENABLED: "true",
+    CHAIN_ID: "11155111",
+    ANCHOR_CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000001",
+    CHAIN_SIGNER_PRIVATE_KEY: testPrivateKey
+  };
+
+  const config = loadConfig({
+    ...base,
+    CHAIN_RPC_URL: "https://primary.example",
+    CHAIN_RPC_URLS:
+      "https://primary.example, https://secondary.example,https://primary.example"
+  });
+
+  assert.deepEqual(config.chainRpcUrls, [
+    "https://primary.example",
+    "https://secondary.example"
+  ]);
+  assert.equal(config.chainRpcUrl, "https://primary.example");
+
+  assert.throws(
+    () =>
+      loadConfig({
+        ...base,
+        CHAIN_RPC_URLS: "https://primary.example,http://secondary.example"
+      }),
+    /CHAIN_RPC_URLS must use HTTPS in production/
+  );
+});
+
 test("blockchain confirmation depth defaults to one and is bounded", () => {
   const base = {
     NODE_ENV: "production",
