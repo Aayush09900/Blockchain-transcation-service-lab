@@ -19,7 +19,8 @@ const mongoStore = new MongoAuditStore({
   url: mongoUrl,
   databaseName:
     process.env.MONGO_DATABASE ?? "blockchain_transaction_audit",
-  maxPoolSize: Number.parseInt(process.env.MONGO_MAX_POOL_SIZE ?? "20", 10)
+  maxPoolSize: Number.parseInt(process.env.MONGO_MAX_POOL_SIZE ?? "20", 10),
+  tls: process.env.MONGO_TLS === "true"
 });
 
 const intervalMs = Math.max(
@@ -72,10 +73,7 @@ async function loop() {
     } catch (error) {
       console.error(JSON.stringify({
         event: "outbox_publish_loop_error",
-        message:
-          error instanceof Error
-            ? error.message
-            : String(error)
+        message: sanitizeError(error)
       }));
     }
 
