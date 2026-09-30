@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "4.2.0",
+    "@nomicfoundation/hardhat-mocha": "4.0.0",
     "hardhat": "3.18.0"
   },
   "engines": {
