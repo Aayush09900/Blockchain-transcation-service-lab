@@ -224,3 +224,49 @@ describe("TransactionReceiptAnchor", function () {
     assert.equal(await contract.anchorer(), anchorer.address);
   });
 });
+
+
+  it("waits for the configured confirmation depth before confirming", async function () {
+    const [sender, receiver] = await ethers.getSigners();
+
+    const contract = await ethers.deployContract("TransactionReceiptAnchor");
+    await contract.waitForDeployment();
+
+    const adapter = new EthersBlockchainAdapter({
+      provider: ethers.provider,
+      signer: sender,
+      contractAddress: await contract.getAddress(),
+      confirmationDepth: 2
+    });
+
+    const broadcast = await adapter.broadcastAnchorTransaction({
+      transactionId: "confirmation-depth-test",
+      sender: sender.address,
+      receiver: receiver.address,
+      amountWei: "9"
+    });
+
+    const pending = await adapter.verifySubmittedTransaction({
+      transactionId: "confirmation-depth-test",
+      sender: sender.address,
+      receiver: receiver.address,
+      amountWei: "9",
+      txHash: broadcast.txHash
+    });
+
+    assert.equal(pending.confirmed, false);
+    assert.equal(pending.confirmations, 1);
+    assert.equal(pending.requiredConfirmations, 2);
+
+    await ethers.provider.send("evm_mine");
+
+    const confirmed = await adapter.verifySubmittedTransaction({
+      transactionId: "confirmation-depth-test",
+      sender: sender.address,
+      receiver: receiver.address,
+      amountWei: "9",
+      txHash: broadcast.txHash
+    });
+
+    assert.equal(confirmed.confirmed, true);
+  });
