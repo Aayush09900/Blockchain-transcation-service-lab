@@ -156,6 +156,21 @@ export class MySqlTransactionStore {
     return mapRow(rows[0]);
   }
 
+  async listBroadcasting(limit = 100) {
+    const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
+
+    const [rows] = await this.pool.query(
+      `SELECT *
+       FROM transactions
+       WHERE status = 'BROADCASTING'
+       ORDER BY updated_at ASC
+       LIMIT ?`,
+      [safeLimit]
+    );
+
+    return rows.map(mapRow);
+  }
+
   async listSubmitted(limit = 100) {
     const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
 
