@@ -154,11 +154,18 @@ async function transitionTransaction(id, nextStatus, patch = {}) {
   return mysqlStore.transition(id, nextStatus, patch);
 }
 
+const HTTP_METHODS = new Set([
+  "GET",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "OPTIONS",
+  "HEAD"
+]);
+
 function normalizeHttpMethod(method) {
-  return new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
-    .has(method)
-    ? method
-    : "OTHER";
+  return HTTP_METHODS.has(method) ? method : "OTHER";
 }
 
 const server = http.createServer(async (request, response) => {
