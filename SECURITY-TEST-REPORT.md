@@ -46,8 +46,8 @@ The repository was re-checked across:
 | SEC-21 | Numeric JSON amounts could be coerced before validation | High | Amount validation now requires decimal strings to prevent floating-point precision loss |
 | SEC-22 | Lockfile bootstrap relied on setup-node automatic npm cache detection while no lockfile was committed | Medium | Replaced it with a committed lockfile and switched CI/security/runtime installs to `npm ci` |
 | SEC-23 | Concurrent outbox workers could claim the same event simultaneously | High | Added MySQL leases with `FOR UPDATE SKIP LOCKED`, worker ownership, and lease expiry recovery |
-| SEC-23 | Supply-chain scanning was limited to npm audit and container scanning | Medium | Added CodeQL for JavaScript/TypeScript and a dependency-review gate/notice workflow |
-| SEC-24 | Repository health check did not enforce immutable GitHub Action references or lockfile presence | Medium | Health check now requires package-lock.json, security workflows, and full 40-character action commit SHAs |
+| SEC-24 | Supply-chain scanning was limited to npm audit and container scanning | Medium | Added CodeQL for JavaScript/TypeScript while retaining npm audit and container scanning; dependency-review is not enabled |
+| SEC-25 | Repository health check did not enforce immutable GitHub Action references or lockfile presence | Medium | Health check now requires package-lock.json, security workflows, and full 40-character action commit SHAs |
 
 ## Current architecture
 
@@ -109,4 +109,4 @@ Two CI regressions were found during the multi-database and Hardhat refactor:
 
 A container-publish workflow issue was also found: the original pinned build-push-action reference did not resolve. It is now updated to a valid published action release, and manual dispatch uses the main branch explicitly.
 
-The latest successful Security Checks run verified application tests, Hardhat compilation/tests, dependency audit, and repository health. The Transaction Service CI is the final gate before container publication.
+Historical CI review notes are retained here for auditability. Before the current head is treated as validated, both Transaction Service CI and Security Checks must complete successfully, including the syntax, application, Hardhat, repository-health, dependency-audit, and container-scan gates where applicable.
