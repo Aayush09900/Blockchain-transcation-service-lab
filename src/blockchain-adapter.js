@@ -1,7 +1,9 @@
 import {
   Contract,
   Interface,
+  FallbackProvider,
   JsonRpcProvider,
+  NonceManager,
   Wallet,
   getAddress,
   getBytes,
@@ -47,32 +49,32 @@ export class EthersBlockchainAdapter {
     }
 
     this.provider = provider;
-    this.signer = signer;
+    this.signer =
+      signer instanceof NonceManager ? signer : new NonceManager(signer);
     this.confirmationDepth = normalizedConfirmationDepth;
     this.contractAddress = getAddress(contractAddress);
-    this.contract = new Contract(this.contractAddress, ABI, signer);
+    this.contract = new Contract(this.contractAddress, ABI, this.signer);
   }
 
   static fromConfig({
     rpcUrl = process.env.CHAIN_RPC_URL,
+    rpcUrls = process.env.CHAIN_RPC_URLS,
     privateKey = process.env.CHAIN_SIGNER_PRIVATE_KEY,
     contractAddress = process.env.ANCHOR_CONTRACT_ADDRESS,
     chainId,
     confirmationDepth = process.env.CHAIN_CONFIRMATIONS ?? "1"
   } = {}) {
-    if (!rpcUrl || !privateKey || !contractAddress) {
+    if (!privateKey || !contractAddress) {
       throw new Error(
-        "CHAIN_RPC_URL, CHAIN_SIGNER_PRIVATE_KEY and ANCHOR_CONTRACT_ADDRESS are required"
+        "CHAIN_RPC_URL or CHAIN_RPC_URLS, CHAIN_SIGNER_PRIVATE_KEY and ANCHOR_CONTRACT_ADDRESS are required"
       );
     }
 
-    const provider = new JsonRpcProvider(
+    const provider = createRpcProvider({
       rpcUrl,
-      chainId ? Number(chainId) : undefined,
-      {
-        staticNetwork: chainId ? Number(chainId) : null
-      }
-    );
+      rpcUrls,
+      chainId
+    });
 
     const signer = new Wallet(privateKey, provider);
 
@@ -306,20 +308,15 @@ export class EthersReceiptMonitor {
 
   static fromConfig({
     rpcUrl = process.env.CHAIN_RPC_URL,
+    rpcUrls = process.env.CHAIN_RPC_URLS,
     chainId,
     confirmationDepth = process.env.CHAIN_CONFIRMATIONS ?? "1"
   } = {}) {
-    if (!rpcUrl) {
-      throw new Error("CHAIN_RPC_URL is required");
-    }
-
-    const provider = new JsonRpcProvider(
+    const provider = createRpcProvider({
       rpcUrl,
-      chainId ? Number(chainId) : undefined,
-      {
-        staticNetwork: chainId ? Number(chainId) : null
-      }
-    );
+      rpcUrls,
+      chainId
+    });
 
     return new EthersReceiptMonitor({ provider, confirmationDepth });
   }
@@ -510,4 +507,50 @@ function blockchainVerificationError(message) {
   error.code = "BLOCKCHAIN_VERIFICATION_FAILED";
   error.statusCode = 409;
   return error;
+}
+
+
+function createRpcProvider({ rpcUrl, rpcUrls, chainId }) {
+  const urls = [rpcUrls, rpcUrl]
+    .filter((value) => value !== undefined && value !== null)
+    .flatMap((value) =>
+      Array.isArray(value) ? value : String(value).split(",")
+    )
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+
+  const uniqueUrls = [...new Set(urls)];
+
+  if (uniqueUrls.length === 0) {
+    throw new Error("CHAIN_RPC_URL or CHAIN_RPC_URLS is required");
+  }
+
+  if (uniqueUrls.length === 1) {
+    return new JsonRpcProvider(
+      uniqueUrls[0],
+      chainId ? Number(chainId) : undefined,
+      {
+        staticNetwork: chainId ? Number(chainId) : null
+      }
+    );
+  }
+
+  const providers = uniqueUrls.map((url, index) => ({
+    provider: new JsonRpcProvider(
+      url,
+      chainId ? Number(chainId) : undefined,
+      {
+        staticNetwork: chainId ? Number(chainId) : null
+      }
+    ),
+    priority: index + 1,
+    weight: 1,
+    stallTimeout: 1_000
+  }));
+
+  return new FallbackProvider(
+    providers,
+    chainId ? Number(chainId) : undefined,
+    { quorum: 1 }
+  );
 }
