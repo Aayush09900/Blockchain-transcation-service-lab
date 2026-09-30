@@ -1,5 +1,5 @@
 import { MySqlTransactionStore } from "./mysql-store.js";
-import { parseEther } from "ethers";
+import { isAddress, parseEther } from "ethers";
 import { EthersReceiptMonitor } from "./blockchain-adapter.js";
 import { sanitizeError } from "./logging.js";
 
@@ -11,10 +11,14 @@ const expectedChainId = process.env.CHAIN_ID
 const anchorContractAddress =
   process.env.ANCHOR_CONTRACT_ADDRESS || undefined;
 
-if (!mysqlUrl || !rpcUrl) {
+if (!mysqlUrl || !rpcUrl || !anchorContractAddress) {
   throw new Error(
-    "MYSQL_URL and CHAIN_RPC_URL are required for the blockchain confirmation worker"
+    "MYSQL_URL, CHAIN_RPC_URL and ANCHOR_CONTRACT_ADDRESS are required for the blockchain confirmation worker"
   );
+}
+
+if (!isAddress(anchorContractAddress)) {
+  throw new Error("ANCHOR_CONTRACT_ADDRESS must be a valid Ethereum address");
 }
 
 const mysqlStore = new MySqlTransactionStore({
@@ -100,7 +104,7 @@ async function loop() {
     } catch (error) {
       console.error(JSON.stringify({
         event: "blockchain_confirmation_loop_error",
-        message: error instanceof Error ? error.message : String(error)
+        message: sanitizeError(error)
       }));
     }
 
