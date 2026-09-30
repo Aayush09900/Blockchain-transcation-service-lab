@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import { NonceManager } from "ethers";
 import { network } from "hardhat";
-import { EthersBlockchainAdapter, EthersReceiptMonitor } from "../src/blockchain-adapter.js";
+import {
+  EthersBlockchainAdapter,
+  EthersReceiptMonitor
+} from "../src/blockchain-adapter.js";
 
 const { ethers } = await network.create();
 
@@ -38,6 +42,46 @@ describe("TransactionReceiptAnchor", function () {
     assert.equal(anchor.blockNumber, result.blockNumber);
   });
 
+
+  it("serializes concurrent submissions with a managed signer nonce", async function () {
+    const [sender, receiver] = await ethers.getSigners();
+
+    const contract = await ethers.deployContract("TransactionReceiptAnchor");
+    await contract.waitForDeployment();
+
+    const adapter = new EthersBlockchainAdapter({
+      provider: ethers.provider,
+      signer: sender,
+      contractAddress: await contract.getAddress()
+    });
+
+    assert.equal(adapter.signer instanceof NonceManager, true);
+
+    const [first, second] = await Promise.all([
+      adapter.broadcastAnchorTransaction({
+        transactionId: "nonce-concurrency-1",
+        sender: sender.address,
+        receiver: receiver.address,
+        amountWei: "11"
+      }),
+      adapter.broadcastAnchorTransaction({
+        transactionId: "nonce-concurrency-2",
+        sender: sender.address,
+        receiver: receiver.address,
+        amountWei: "12"
+      })
+    ]);
+
+    assert.notEqual(first.txHash, second.txHash);
+
+    const [firstReceipt, secondReceipt] = await Promise.all([
+      adapter.getTransactionReceipt(first.txHash),
+      adapter.getTransactionReceipt(second.txHash)
+    ]);
+
+    assert.equal(firstReceipt.status, 1);
+    assert.equal(secondReceipt.status, 1);
+  });
 
   it("broadcasts an anchor without waiting for the receipt", async function () {
     const [sender, receiver] = await ethers.getSigners();
