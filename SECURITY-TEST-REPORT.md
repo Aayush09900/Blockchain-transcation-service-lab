@@ -83,3 +83,15 @@ Remaining controls for real-money usage:
 - backup/restore validation
 - disaster recovery
 - external security review
+
+
+## Final CI review notes
+
+Two CI regressions were found during the multi-database and Hardhat refactor:
+
+1. The Node test command was changed to `node --test test`, which Node interpreted as a test target named `test`. It was corrected to `node --test test/*.test.js` so Hardhat Mocha tests remain isolated.
+2. The MySQL integration fixture used a conflicting idempotency request with a mismatched amount. The fixture was corrected, and the persistence implementation was also hardened so idempotency behavior is determined from the locked database row rather than driver-specific affected-row semantics.
+
+A container-publish workflow issue was also found: the original pinned build-push-action reference did not resolve. It is now updated to a valid published action release, and manual dispatch uses the main branch explicitly.
+
+The latest successful Security Checks run verified application tests, Hardhat compilation/tests, dependency audit, and repository health. The Transaction Service CI is the final gate before container publication.
