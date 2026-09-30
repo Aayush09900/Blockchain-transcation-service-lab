@@ -2,138 +2,84 @@
 
 ## Scope
 
-Security-focused regression testing for:
+The repository was re-checked across:
 
-- Transaction ID path handling
-- Path traversal probes
-- Malformed URL encoding
-- Authentication boundaries
-- Rate-limit exhaustion
-- Security headers
-- Internal error disclosure
+- API boundary
+- transaction state machine
+- MySQL persistence
+- MySQL idempotency
+- MySQL outbox
+- MongoDB audit layer
+- path validation
+- authentication
+- rate limiting
+- configuration
+- ethers.js blockchain boundary
+- Solidity contract behavior
+- Hardhat tests
+- Docker and CI structure
 
-## Findings and remediation
+## Findings fixed in this architecture pass
 
-| ID | Finding | Severity | Status |
-| --- | --- | --- | --- |
-| SEC-01 | Transaction routes accepted arbitrary identifier strings before the data layer | Medium | Fixed |
-| SEC-02 | Encoded path separators and malformed path payloads reached transaction lookup before strict validation | Medium | Fixed |
-| SEC-03 | The in-memory rate limiter could grow without a hard client-entry bound | Medium | Fixed |
-| SEC-04 | Unexpected internal errors could expose raw error messages to API clients | High | Fixed |
-| SEC-05 | Bearer token comparison used ordinary string equality | Low | Fixed |
-| SEC-06 | Health/readiness responses exposed the persistence implementation | Low | Fixed |
-| SEC-07 | Local Docker Compose file contained hardcoded database/API credentials | High | Fixed |
-| SEC-08 | PostgreSQL path bypassed core input validation in the API layer | High | Fixed |
-| SEC-09 | Concurrent idempotency requests could race before insert | High | Fixed |
-| SEC-10 | PostgreSQL submission attempts were not incremented | Medium | Fixed |
-| SEC-11 | CORS preflight could echo an origin when no allowlist was configured | Medium | Fixed |
-| SEC-12 | Production startup allowed missing API/database configuration | High | Fixed |
-| SEC-13 | CI security workflow failed because npm cache required a lockfile that was not present | Medium | Fixed |
-
-## Configuration secret investigation
-
-The Docker Compose configuration originally contained literal database and API credentials. Those values are now required through environment variables, and the example configuration documents the expected variables without embedding real credentials.
-
-## Production configuration and consistency review
-
-The PostgreSQL-backed API previously validated transaction input differently from the in-memory path. The database path now reuses the same canonical input validator.
-
-Idempotency creation now uses a database uniqueness constraint with INSERT ... ON CONFLICT DO NOTHING followed by a locked read, closing a concurrent-request race.
-
-Submission attempts are incremented inside the PostgreSQL state transition transaction, and transaction-hash mismatches are rejected.
-
-Production configuration now requires API_TOKEN and DATABASE_URL. Production database TLS defaults on unless explicitly disabled.
-
-CORS preflight responses are now disabled unless an explicit CORS allowlist is configured.
-
-## Path traversal investigation
-
-A classic filesystem path traversal attack such as ../etc/passwd was not directly exploitable in the original transaction lookup path because the transaction ID was used for a map/database lookup rather than a filesystem operation, and database queries are parameterized.
-
-The input was still unnecessarily permissive. The service now:
-
-1. Decodes the URL segment.
-2. Rejects malformed percent-encoding.
-3. Rejects dot-segments and encoded separators indirectly through strict validation.
-4. Requires the UUID format used by generated transaction IDs.
-5. Rejects unexpected control characters and arbitrary identifiers before reaching the data layer.
-
-## High-priority issue: internal error disclosure
-
-Unexpected exceptions previously fell through to the HTTP handler and their raw message could be returned to the client.
-
-This is dangerous because database, infrastructure, or library failures can contain implementation details or sensitive operational information.
-
-The handler now:
-
-- maps known client errors to safe messages;
-- returns a generic internal server error for unexpected exceptions;
-- logs only non-secret error metadata server-side.
-
-## Rate-limit memory exhaustion
-
-The original in-memory limiter stored a map entry for every unique client key without a hard upper bound.
-
-A high volume of rotating client addresses could increase memory usage.
-
-The limiter now:
-
-- expires old entries;
-- enforces a maximum client count;
-- evicts the oldest entry when the bound is reached.
-
-For horizontally scaled production deployments, the application should use a distributed rate limiter backed by shared infrastructure.
-
-## Authentication hardening
-
-Bearer-token validation now:
-
-- fails closed when authentication is not configured;
-- rejects malformed multi-token Authorization headers;
-- compares equal-length secrets with a timing-safe primitive.
-
-This is still a single static service token, so production multi-user authorization should use an established identity and authorization model.
-
-## Test file
-
-Security regression tests are located at:
-
-test/security-vulnerabilities.test.js
-
-Run locally with:
-
-npm test
+| ID | Finding | Severity | Resolution |
+| --- | --- | ---: | --- |
+| SEC-01 | Transaction path accepted arbitrary identifiers | Medium | Strict UUID validation |
+| SEC-02 | Encoded traversal-style paths were not rejected early | Medium | URL decoding plus UUID validation |
+| SEC-03 | In-memory rate limiter could grow without a hard bound | Medium | Expiration and maximum entry cap |
+| SEC-04 | Internal error messages could leak to clients | High | Safe public error mapping |
+| SEC-05 | Bearer-token comparison used normal equality | Low | Timing-safe comparison |
+| SEC-06 | Unconfigured CORS could echo arbitrary origins | Medium | CORS disabled unless explicitly allowlisted |
+| SEC-07 | Production could start without required persistence/security settings | High | Production config validation |
+| SEC-08 | PostgreSQL architecture did not match the requested multi-database design | Medium | Replaced with MySQL + MongoDB |
+| SEC-09 | Database transaction and audit handoff had no durable outbox | High | Added MySQL transactional outbox |
+| SEC-10 | Blockchain code was not isolated from the HTTP layer | Medium | Added ethers.js adapter boundary |
+| SEC-11 | Smart-contract behavior lacked a dedicated Hardhat test suite | High | Added Hardhat 3 + ethers integration tests |
+| SEC-12 | Repository validation did not check the full technology stack | Medium | Expanded repository health check |
 
 ## Current architecture
 
-Client/API
--> Security Edge
--> Authentication
--> Rate Limiting
--> Input Validation
--> Transaction Service
--> PostgreSQL
--> Queue/Worker (planned)
--> Blockchain RPC
--> Confirmation/Event Listener
--> Reconciliation/Audit
+```
+Client
+  |
+Security Edge
+  |
+Transaction API
+  |
+MySQL source of truth
+  |
+MySQL transactional outbox
+  |
+Outbox worker
+  |
+MongoDB audit/read model
 
-## Remaining production security work
+Optional blockchain path:
+Transaction -> ethers.js -> Ethereum -> receipt anchor
+```
 
-The project is still a learning lab, not a production custody platform.
+## Security conclusion
 
-Remaining work includes:
+Classic filesystem path traversal is not directly applicable to the transaction lookup because the service does not use user-controlled transaction IDs as filesystem paths.
 
-- durable queue and worker processing
-- retry/backoff and dead-letter handling
+The service still rejects traversal-style payloads because hostile path input should be rejected at the HTTP boundary.
+
+## Remaining production risks
+
+The project is a production-oriented engineering lab, not a live custody platform.
+
+Remaining controls for real-money usage:
+
+- durable execution queue
 - RPC failover
 - nonce management
-- chain allowlisting
-- confirmation depth and reorg handling
+- fee policy
+- chain allowlist
+- confirmation depth
+- reorg handling
+- on-chain reconciliation
 - distributed rate limiting
-- secret manager integration
-- infrastructure firewall/security-group policy
-- TLS termination
-- centralized metrics and logs
-- backup and restore testing
-- independent security review
+- managed secrets
+- centralized observability
+- backup/restore validation
+- disaster recovery
+- external security review
