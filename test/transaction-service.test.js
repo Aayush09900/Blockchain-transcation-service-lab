@@ -198,3 +198,18 @@ test("rejects malformed decimal amounts", () => {
     /amount must be a positive decimal string/
   );
 });
+
+
+test("rejects numeric amounts to avoid floating-point precision loss", () => {
+  const service = new TransactionService();
+
+  assert.throws(
+    () => service.submit({
+      idempotencyKey: "numeric-amount",
+      from: "0x0000000000000000000000000000000000000001",
+      to: "0x0000000000000000000000000000000000000002",
+      amount: 1.5
+    }),
+    /amount is required/
+  );
+});
