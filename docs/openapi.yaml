@@ -29,6 +29,20 @@ paths:
           description: Dependencies are ready
         "503":
           description: Dependency is unavailable
+  /metrics:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Read authenticated Prometheus metrics
+      responses:
+        "200":
+          description: Prometheus exposition format
+          content:
+            text/plain:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /v1/transactions:
     post:
       summary: Create a transaction
