@@ -39,7 +39,7 @@ export function loadConfig(env = process.env) {
 
   const blockchainEnabled = booleanValue(
     env.BLOCKCHAIN_ENABLED,
-    production
+    false
   );
   const chainRpcUrl = String(env.CHAIN_RPC_URL ?? "").trim();
   const chainId = env.CHAIN_ID ? Number(env.CHAIN_ID) : undefined;
