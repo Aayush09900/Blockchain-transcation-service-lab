@@ -10,6 +10,7 @@ import {
   validateTransactionId
 } from "../src/path-security.js";
 import { toPublicHttpError } from "../src/http-errors.js";
+import { sanitizeLogValue } from "../src/logging.js";
 
 test("path traversal payloads are rejected as transaction IDs", () => {
   assert.throws(
@@ -124,4 +125,17 @@ test("invalid transaction paths remain client errors", () => {
 
   assert.equal(result.statusCode, 400);
   assert.equal(result.message, "invalid transaction id");
+});
+
+
+test("log sanitization removes control characters and common credential material", () => {
+  const result = sanitizeLogValue(
+    "boom\nBearer super-secret-token mysql://user:password@example.test/db apiKey=abc123"
+  );
+
+  assert.equal(result.includes("\n"), false);
+  assert.equal(result.includes("super-secret-token"), false);
+  assert.equal(result.includes("password@example.test"), false);
+  assert.equal(result.includes("abc123"), false);
+  assert.equal(result.includes("REDACTED"), true);
 });
