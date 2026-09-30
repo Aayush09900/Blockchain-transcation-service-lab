@@ -7,13 +7,16 @@ import {
   authenticate,
   createRateLimiter
 } from "./security.js";
+import { parseTransactionId } from "./path-security.js";
+import { toPublicHttpError } from "./http-errors.js";
 
 const PORT = Number.parseInt(process.env.PORT ?? "3000", 10);
 const MAX_BODY_BYTES = 32 * 1024;
 const API_TOKEN = process.env.API_TOKEN ?? "";
 const CORS_ORIGIN = process.env.CORS_ORIGIN ?? "";
 const rateLimit = createRateLimiter({
-  maxRequests: Number.parseInt(process.env.RATE_LIMIT_MAX ?? "60", 10)
+  maxRequests: Number.parseInt(process.env.RATE_LIMIT_MAX ?? "60", 10),
+  maxClients: Number.parseInt(process.env.RATE_LIMIT_MAX_CLIENTS ?? "10000", 10)
 });
 
 const memoryService = new TransactionService();
@@ -50,11 +53,23 @@ async function readJson(request) {
   if (size === 0) return {};
 
   try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
-  } catch {
-    const error = new Error("invalid JSON");
-    error.statusCode = 400;
-    throw error;
+    const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      const error = new Error("request body must be a JSON object");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    return body;
+  } catch (error) {
+    if (error.statusCode) {
+      throw error;
+    }
+
+    const invalidJson = new Error("invalid JSON");
+    invalidJson.statusCode = 400;
+    throw invalidJson;
   }
 }
 
@@ -111,7 +126,8 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "OPTIONS") {
     response.writeHead(204, {
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Authorization, Content-Type, Idempotency-Key"
+      "Access-Control-Allow-Headers":
+        "Authorization, Content-Type, Idempotency-Key"
     });
     response.end();
     return;
@@ -127,26 +143,21 @@ const server = http.createServer(async (request, response) => {
 
   try {
     if (request.method === "GET" && request.url === "/health") {
-      json(response, 200, {
-        status: "ok",
-        persistence: persistenceMode
-      });
+      json(response, 200, { status: "ok" });
       return;
     }
 
     if (request.method === "GET" && request.url === "/ready") {
       if (postgresStore) {
         const healthy = await postgresStore.healthCheck();
+
         if (!healthy) {
           json(response, 503, { status: "not ready" });
           return;
         }
       }
 
-      json(response, 200, {
-        status: "ready",
-        persistence: persistenceMode
-      });
+      json(response, 200, { status: "ready" });
       return;
     }
 
@@ -167,7 +178,7 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "POST" && submitMatch) {
       const body = await readJson(request);
       const transaction = await transitionTransaction(
-        decodeURIComponent(submitMatch[1]),
+        parseTransactionId(submitMatch[1]),
         "SUBMITTED",
         { txHash: body.txHash }
       );
@@ -182,7 +193,7 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "POST" && confirmMatch) {
       const transaction = await transitionTransaction(
-        decodeURIComponent(confirmMatch[1]),
+        parseTransactionId(confirmMatch[1]),
         "CONFIRMED"
       );
 
@@ -197,7 +208,7 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "POST" && failMatch) {
       const body = await readJson(request);
       const transaction = await transitionTransaction(
-        decodeURIComponent(failMatch[1]),
+        parseTransactionId(failMatch[1]),
         "FAILED",
         { failureReason: body.reason ?? "transaction failed" }
       );
@@ -206,24 +217,30 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
-    const match = request.url?.match(/^\/v1\/transactions\/([^/]+)$/);
+    const match = request.url?.match(/^\/v1\/transactions\/([^/]+)$//);
 
     if (request.method === "GET" && match) {
-      json(response, 200, await getTransaction(decodeURIComponent(match[1])));
+      json(
+        response,
+        200,
+        await getTransaction(parseTransactionId(match[1]))
+      );
       return;
     }
 
     json(response, 404, { error: "not found" });
   } catch (error) {
-    const statusCode =
-      error.code === "NOT_FOUND" ? 404 :
-      error.code === "IDEMPOTENCY_CONFLICT" ? 409 :
-      error.code === "INVALID_TRANSITION" ? 409 :
-      error.statusCode ?? 400;
+    const publicError = toPublicHttpError(error);
 
-    const message = statusCode >= 500 ? "internal server error" : error.message;
+    if (publicError.statusCode >= 500) {
+      console.error(JSON.stringify({
+        event: "request_error",
+        name: error?.name ?? "Error",
+        code: error?.code ?? "INTERNAL"
+      }));
+    }
 
-    json(response, statusCode, { error: message });
+    json(response, publicError.statusCode, { error: publicError.message });
   }
 });
 
