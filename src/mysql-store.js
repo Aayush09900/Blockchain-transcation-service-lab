@@ -341,42 +341,80 @@ export class MySqlTransactionStore {
 
   async claimOutboxBatch(limit = 50) {
     const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 500));
-    const [rows] = await this.pool.query(
-      `SELECT id, event_id, transaction_id, event_type, payload
-       FROM transaction_outbox
-       WHERE published_at IS NULL
-         AND dead_lettered_at IS NULL
-         AND (next_attempt_at IS NULL OR next_attempt_at <= CURRENT_TIMESTAMP(6))
-       ORDER BY id ASC
-       LIMIT ?`,
-      [safeLimit]
-    );
+    const claimToken = randomUUID();
+    const connection = await this.pool.getConnection();
 
-    return rows;
+    try {
+      await connection.beginTransaction();
+
+      const [rows] = await connection.query(
+        `SELECT id, event_id, transaction_id, event_type, payload
+         FROM transaction_outbox
+         WHERE published_at IS NULL
+           AND dead_lettered_at IS NULL
+           AND (next_attempt_at IS NULL OR next_attempt_at <= CURRENT_TIMESTAMP(6))
+           AND (claimed_at IS NULL OR claimed_at < DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL 5 MINUTE))
+         ORDER BY id ASC
+         LIMIT ?
+         FOR UPDATE SKIP LOCKED`,
+        [safeLimit]
+      );
+
+      if (rows.length > 0) {
+        await connection.query(
+          `UPDATE transaction_outbox
+           SET claim_token = ?,
+               claimed_at = CURRENT_TIMESTAMP(6)
+           WHERE id IN (?)`,
+          [claimToken, rows.map((row) => row.id)]
+        );
+      }
+
+      await connection.commit();
+
+      return rows.map((row) => ({
+        ...row,
+        claim_token: rows.length > 0 ? claimToken : null
+      }));
+    } catch (error) {
+      await connection.rollback().catch(() => {});
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
 
-  async markOutboxPublished(id) {
+  async markOutboxPublished(id, claimToken) {
     await this.pool.execute(
       `UPDATE transaction_outbox
        SET published_at = CURRENT_TIMESTAMP(6),
            attempts = attempts + 1,
            last_error = NULL,
-           next_attempt_at = NULL
-       WHERE id = ? AND published_at IS NULL`,
-      [id]
+           next_attempt_at = NULL,
+           claim_token = NULL,
+           claimed_at = NULL
+       WHERE id = ?
+         AND published_at IS NULL
+         AND claim_token = ?`,
+      [id, claimToken]
     );
   }
 
-  async markOutboxFailed(id, message) {
+  async markOutboxFailed(id, message, claimToken) {
     const attemptsResult = await this.pool.execute(
-      "SELECT attempts FROM transaction_outbox WHERE id = ? AND published_at IS NULL",
-      [id]
+      `SELECT attempts
+       FROM transaction_outbox
+       WHERE id = ?
+         AND published_at IS NULL
+         AND claim_token = ?`,
+      [id, claimToken]
     );
 
     if (attemptsResult[0].length === 0) return;
 
     const attempts = Number(attemptsResult[0][0].attempts) + 1;
     const maxAttempts = 10;
+    const errorMessage = String(message).slice(0, 1000);
 
     if (attempts >= maxAttempts) {
       await this.pool.execute(
@@ -384,13 +422,13 @@ export class MySqlTransactionStore {
          SET attempts = ?,
              last_error = ?,
              dead_lettered_at = CURRENT_TIMESTAMP(6),
-             next_attempt_at = NULL
-         WHERE id = ? AND published_at IS NULL`,
-        [
-          attempts,
-          String(message).slice(0, 1000),
-          id
-        ]
+             next_attempt_at = NULL,
+             claim_token = NULL,
+             claimed_at = NULL
+         WHERE id = ?
+           AND published_at IS NULL
+           AND claim_token = ?`,
+        [attempts, errorMessage, id, claimToken]
       );
       return;
     }
@@ -402,14 +440,13 @@ export class MySqlTransactionStore {
       `UPDATE transaction_outbox
        SET attempts = ?,
            last_error = ?,
-           next_attempt_at = ?
-       WHERE id = ? AND published_at IS NULL`,
-      [
-        attempts,
-        String(message).slice(0, 1000),
-        nextAttemptAt,
-        id
-      ]
+           next_attempt_at = ?,
+           claim_token = NULL,
+           claimed_at = NULL
+       WHERE id = ?
+         AND published_at IS NULL
+         AND claim_token = ?`,
+      [attempts, errorMessage, nextAttemptAt, id, claimToken]
     );
   }
 }
