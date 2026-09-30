@@ -53,6 +53,7 @@ const recoveryLookbackBlocks = Math.max(
 
 let running = true;
 let processing = false;
+let inFlight = null;
 
 async function reconcileBatch() {
   if (processing) return;
@@ -143,9 +144,13 @@ async function reconcileBatch() {
         }));
       }
     }
-  } finally {
-    processing = false;
-  }
+    } finally {
+      inFlight = null;
+      processing = false;
+    }
+  })();
+
+  await inFlight;
 }
 
 async function loop() {
