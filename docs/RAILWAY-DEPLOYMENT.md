@@ -37,6 +37,7 @@ MYSQL_SSL=true
 MONGO_URL=<private MongoDB connection string>
 MONGO_DATABASE=blockchain_transaction_audit
 MONGO_MAX_POOL_SIZE=20
+MONGO_TLS=true
 BLOCKCHAIN_ENABLED=false
 ```
 
@@ -72,6 +73,7 @@ MYSQL_POOL_MAX=10
 MONGO_URL=<private MongoDB connection string>
 MONGO_DATABASE=blockchain_transaction_audit
 MONGO_MAX_POOL_SIZE=20
+MONGO_TLS=true
 OUTBOX_POLL_MS=1000
 ```
 
@@ -98,6 +100,7 @@ CHAIN_RPC_URL=<Ethereum RPC URL>
 CHAIN_ID=<network chain id>
 CHAIN_CONFIRM_POLL_MS=3000
 CHAIN_CONFIRM_BATCH_SIZE=50
+ANCHOR_CONTRACT_ADDRESS=<deployed contract>
 ```
 
 This worker is read-only against the blockchain and does not require the signer private key.
