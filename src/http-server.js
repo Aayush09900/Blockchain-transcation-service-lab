@@ -158,14 +158,22 @@ const server = http.createServer(async (request, response) => {
   response.setHeader("X-Request-ID", requestId);
 
   if (request.method === "OPTIONS") {
-    if (config.corsOrigin && origin !== config.corsOrigin) {
+    if (!config.corsOrigin) {
+      response.writeHead(204, {
+        "X-Request-ID": requestId
+      });
+      response.end();
+      return;
+    }
+
+    if (origin !== config.corsOrigin) {
       json(response, requestId, 403, { error: "origin not allowed" });
       return;
     }
 
     response.writeHead(204, {
       "X-Request-ID": requestId,
-      "Access-Control-Allow-Origin": config.corsOrigin || origin,
+      "Access-Control-Allow-Origin": config.corsOrigin,
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers":
         "Authorization, Content-Type, Idempotency-Key, X-Request-ID",
