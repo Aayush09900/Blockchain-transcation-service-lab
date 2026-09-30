@@ -67,15 +67,7 @@ async function publishBatch() {
             eventType: event.event_type,
             payload,
             occurredAt: event.created_at
-          console.log(JSON.stringify({
-        event: "outbox_batch_processed",
-        claimed: events.length,
-        published: batchPublished,
-        failed: batchFailed,
-        maxEventLagMs,
-        totals: { batchesProcessed, eventsClaimed, eventsPublished, eventsFailed }
-      }));
-    });
+          });
 
           const transaction = await mysqlStore.get(event.transaction_id);
           await mongoStore.upsertSnapshot(transaction);
