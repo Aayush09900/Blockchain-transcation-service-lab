@@ -96,9 +96,10 @@ test("allows a confirmed transaction to enter reorg recovery", () => {
   );
   service.markConfirmed(tx.id);
 
-  const reorged = service.transition(tx.id, "REORGED", {
-    failureReason: "confirmed block was reorganized"
-  });
+  const reorged = service.markReorged(
+    tx.id,
+    "confirmed block was reorganized"
+  );
 
   assert.equal(reorged.status, "REORGED");
   assert.equal(reorged.failureReason, "confirmed block was reorganized");
