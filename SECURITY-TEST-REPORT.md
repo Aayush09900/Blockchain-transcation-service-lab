@@ -50,6 +50,7 @@ The repository was re-checked across:
 | SEC-25 | Repository health check did not enforce immutable GitHub Action references or lockfile presence | Medium | Health check now requires package-lock.json, security workflows, and full 40-character action commit SHAs |
 | SEC-26 | Submission endpoint trusted a caller-supplied transaction hash | High | Submission now uses the service-controlled blockchain adapter/signer; arbitrary txHash input is rejected |
 | SEC-27 | Broadcast/RPC or post-broadcast persistence ambiguity could be converted into FAILED | High | Transaction remains BROADCASTING until reconciliation recovers and verifies the on-chain anchor |
+| SEC-28 | Concurrent submit/claim errors could be reported as blockchain broadcast ambiguity | Medium | Broadcast-ambiguity wrapping is now limited to actual broadcast and post-broadcast persistence failures; initial BROADCASTING claim errors propagate unchanged |
 
 ## Current architecture
 
