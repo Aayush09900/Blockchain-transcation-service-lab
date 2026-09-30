@@ -254,6 +254,11 @@ export class MySqlTransactionStore {
           ? current.tx_hash
           : validateTransactionHash(patch.txHash);
 
+      const signedTransaction =
+        patch.signedTransaction === undefined
+          ? current.signed_transaction
+          : patch.signedTransaction;
+
       const failureReason =
         nextStatus === "FAILED"
           ? requireNonEmptyString(
@@ -272,6 +277,7 @@ export class MySqlTransactionStore {
         `UPDATE transactions
          SET status = ?,
              tx_hash = ?,
+             signed_transaction = ?,
              failure_reason = ?,
              attempts = ?,
              updated_at = CURRENT_TIMESTAMP(6)
@@ -279,6 +285,7 @@ export class MySqlTransactionStore {
         [
           nextStatus,
           txHash,
+          signedTransaction,
           failureReason,
           attempts,
           id
