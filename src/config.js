@@ -3,7 +3,7 @@ import { isAddress } from "ethers";
 function positiveInteger(value, field, fallback) {
   const raw = String(value ?? fallback).trim();
 
-  if (!/^\\d+$/.test(raw)) {
+  if (!/^\d+$/.test(raw)) {
     const error = new Error(`${field} must be a positive integer`);
     error.code = "CONFIG_ERROR";
     error.statusCode = 500;
