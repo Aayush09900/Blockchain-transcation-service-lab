@@ -3,3 +3,14 @@ ALTER TABLE transactions
   ADD COLUMN confirmed_block_number BIGINT UNSIGNED NULL,
   ADD COLUMN confirmed_block_hash CHAR(66) NULL,
   ADD KEY ix_transactions_confirmed_block (status, confirmed_block_number);
+
+
+ALTER TABLE transactions
+  MODIFY COLUMN status ENUM(
+    'CREATED',
+    'BROADCASTING',
+    'SUBMITTED',
+    'CONFIRMED',
+    'REORGED',
+    'FAILED'
+  ) NOT NULL;
