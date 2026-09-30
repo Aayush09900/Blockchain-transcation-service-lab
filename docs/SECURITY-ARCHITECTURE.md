@@ -48,6 +48,7 @@ Controls:
 - HTTPS RPC in production
 - pinned chain ID
 - verified transaction calldata/value/sender/receiver before confirmation
+- configurable confirmation-depth policy before marking a mined transaction CONFIRMED
 - private key supplied only through secret configuration
 - no secrets stored in Git
 
