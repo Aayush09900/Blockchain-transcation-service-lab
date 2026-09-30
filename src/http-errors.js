@@ -61,6 +61,13 @@ export function toPublicHttpError(error) {
     return { statusCode: 503, message: "blockchain adapter disabled" };
   }
 
+  if (error?.code === "TRANSACTION_NOT_SUBMITTED") {
+    return {
+      statusCode: 409,
+      message: "transaction must be submitted before confirmation"
+    };
+  }
+
   if (error?.statusCode && error.statusCode >= 400 && error.statusCode < 500) {
     return {
       statusCode: error.statusCode,
