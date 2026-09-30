@@ -157,7 +157,7 @@ test("blockchain mode requires a pinned chain ID and secure production RPC", () 
 
   assert.throws(
     () => loadConfig(base),
-    /CHAIN_RPC_URL must use HTTPS in production/
+    /CHAIN_RPC_URLS must use HTTPS in production/
   );
 
   assert.throws(
