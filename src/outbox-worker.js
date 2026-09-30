@@ -44,9 +44,9 @@ async function publishBatch() {
   processing = true;
   inFlight = (async () => {
     try {
-    const events = await mysqlStore.claimOutboxBatch(batchSize);
+      const events = await mysqlStore.claimOutboxBatch(batchSize);
 
-    for (const event of events) {
+      for (const event of events) {
       try {
         const payload = JSON.parse(event.payload);
 
@@ -67,8 +67,8 @@ async function publishBatch() {
           event.id,
           sanitizeError(error)
         );
+        }
       }
-    }
     } finally {
       inFlight = null;
       processing = false;
@@ -104,7 +104,7 @@ async function shutdown(signal) {
   if (inFlight) {
     await inFlight.catch((error) => {
       console.error(JSON.stringify({
-        event: "outbox_worker_shutdown",
+        event: "outbox_worker_shutdown_error",
         message: sanitizeError(error)
       }));
     });
