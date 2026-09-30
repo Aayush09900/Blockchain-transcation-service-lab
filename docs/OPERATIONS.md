@@ -54,7 +54,7 @@ The system of record is MySQL.
 
 MongoDB is an audit/read model and must never be treated as the authoritative transaction ledger.
 
-The MySQL outbox provides the durable handoff between transactional state and MongoDB.
+The MySQL outbox provides the durable handoff between transactional state and MongoDB. MongoDB event records retain the source outbox occurrence time, and transaction snapshots only advance when the incoming MySQL `updated_at` is newer, preventing an out-of-order worker from regressing the read model.
 
 ## Deployment
 
@@ -101,6 +101,8 @@ The lookback must cover the block range in which a crashed broadcast could have 
 
 ### Outbox worker concurrency
 
-The MySQL outbox uses a short lease (`claimed_by` / `claimed_until`) with `FOR UPDATE SKIP LOCKED`. This prevents multiple worker instances from actively processing the same pending event while allowing another worker to recover an abandoned claim after the lease expires.
+The MySQL outbox uses a lease (`claimed_by` / `claimed_until`) with `FOR UPDATE SKIP LOCKED`. This prevents multiple worker instances from actively claiming the same pending row while allowing another worker to recover an abandoned claim after the lease expires.
+
+The worker defaults to a 50-event batch and a 60-second lease. Configure `OUTBOX_BATCH_SIZE` and `OUTBOX_LEASE_MS` for the expected event-processing latency; the application enforces a 10-second minimum and 15-minute maximum lease.
 
 For databases created before the lease columns existed, apply `db/mysql/002_outbox_leases.sql` during the deployment migration step before starting multiple outbox workers.
