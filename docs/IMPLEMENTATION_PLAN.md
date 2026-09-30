@@ -10,19 +10,19 @@ Add PRD, TRD, APP FLOW, UI/UX, BACKEND SCHEMA, and IMPLEMENTATION PLAN to the re
 Add package-lock.json and use npm ci in CI/container builds where appropriate.
 
 ## Phase 3 — Verified submission
-Replace production-path trust in caller-supplied transaction hashes with service-controlled broadcast or explicit verified reconciliation mode.
+Completed: `POST /submit` uses the service-controlled blockchain adapter and signer. Caller-supplied transaction hashes are rejected. Repeated submission is idempotent.
 
 ## Phase 4 — Unknown-result reconciliation
-Introduce a safe path for RPC/broadcast ambiguity. Do not mark uncertain transactions FAILED without blockchain evidence.
+Completed: broadcast and post-broadcast persistence ambiguity leave the transaction in `BROADCASTING`. The confirmation worker recovers mined broadcasts from indexed anchor events and verifies the recovered intent before continuing.
 
 ## Phase 5 — Atomic outbox claiming
-Implement database-safe claim/lease processing for multi-worker operation.
+Completed: MySQL outbox rows use worker ownership leases, `FOR UPDATE SKIP LOCKED`, expiry recovery, and ownership checks before finalization.
 
 ## Phase 6 — Confirmation tests
-Add integration coverage for pending receipts, successful receipts, reverted receipts, RPC errors, repeated polling, and terminal-state protection.
+Completed: receipt verification regression coverage now includes pending receipts, successful receipts, reverted receipts, RPC failures, repeated verification, and payload mismatch protection. State-machine tests cover terminal-state protection.
 
 ## Phase 7 — Security regression
-Run validation, authentication, authorization, rate-limit, CORS, secret, dependency, and CodeQL checks.
+In progress for this change set: run application, Hardhat, repository-health, dependency-audit, CodeQL, and container validation on the merged candidate.
 
 ## Phase 8 — Observability
 Add structured logs, correlation IDs, outbox lag, RPC errors, confirmation latency, and worker health metrics.
