@@ -7,6 +7,7 @@ const root = process.cwd();
 
 const requiredFiles = [
   "package.json",
+  "package-lock.json",
   "README.md",
   "SECURITY.md",
   "SECURITY-TEST-REPORT.md",
@@ -35,6 +36,8 @@ const requiredFiles = [
   "test/security-vulnerabilities.test.js",
   ".github/workflows/ci.yml",
   ".github/workflows/security.yml",
+  ".github/workflows/codeql.yml",
+  ".github/workflows/dependency-review.yml",
   ".github/workflows/publish-image.yml",
   ".github/workflows/deploy-railway.yml",
   ".github/workflows/pages.yml",
@@ -144,6 +147,46 @@ for (const requiredIgnore of [".env", "*.pem", "*.key", "node_modules/"]) {
   }
 }
 
+const workflowFiles = [
+  ".github/workflows/ci.yml",
+  ".github/workflows/security.yml",
+  ".github/workflows/publish-image.yml",
+  ".github/workflows/codeql.yml",
+  ".github/workflows/dependency-review.yml"
+];
+
+for (const workflowFile of workflowFiles) {
+  if (!exists(workflowFile)) continue;
+
+  const workflow = fs.readFileSync(
+    path.join(root, workflowFile),
+    "utf8"
+  );
+
+  for (const line of workflow.split("\n")) {
+    const match = line.match(/^\s*uses:\s*([^\s#]+)\s*#/);
+
+    if (!match) continue;
+
+    const reference = match[1];
+
+    if (
+      reference.startsWith("./") ||
+      reference.startsWith("docker://") ||
+      reference.includes("@") === false
+    ) {
+      continue;
+    }
+
+    const sha = reference.slice(reference.lastIndexOf("@") + 1);
+
+    if (!/^[0-9a-f]{40}$/i.test(sha)) {
+      failures.push(
+        `GitHub Action is not pinned to a full commit SHA: ${workflowFile} -> ${reference}`
+      );
+    }
+  }
+}
 if (failures.length > 0) {
   console.error("Repository health check failed:");
 
