@@ -15,12 +15,14 @@ HTTP routes/controllers must not contain database or RPC implementation details.
 Controller -> Service -> Repository
 Service -> Blockchain Adapter
 Outbox Worker -> MongoDB
+Telemetry -> metrics and structured logs
 
 ## Current repository implementation
 The repository currently uses a MySQL transactions table plus transaction_outbox rather than separate transaction_events, idempotency_keys, and outbox_events tables. This simpler model is retained unless a concrete requirement justifies migration.
 
 ## State machine
 CREATED -> BROADCASTING -> SUBMITTED -> CONFIRMED
+CONFIRMED -> REORGED -> SUBMITTED -> CONFIRMED
 CREATED -> FAILED
 CREATED -> BROADCASTING -> FAILED
 SUBMITTED -> FAILED
@@ -49,6 +51,13 @@ JWT/bearer authentication, timing-safe credential comparison, validation, CORS a
 
 ## Reliability
 Transactional outbox, retry/lease processing, confirmation polling, reconciliation for uncertain blockchain state, structured logging, and operational metrics.
+
+## Observability
+
+- `/metrics` is authenticated and exposes Prometheus-compatible counters/histograms.
+- Route labels use normalized templates and never contain transaction IDs, request IDs, tx hashes, or secrets.
+- Worker logs use bounded batch summaries, event lag, reconciliation outcomes, and throttled heartbeats.
+- Centralized scraping, dashboards, retention, and alerting are deployment responsibilities.
 
 ## Deployment
 Docker for local/integration environments. Production requires managed secrets, appropriate TLS/network controls, RPC redundancy, nonce/fee management, reorg handling, monitoring, backups, and disaster recovery.
