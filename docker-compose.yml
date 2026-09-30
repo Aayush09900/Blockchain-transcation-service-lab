@@ -88,6 +88,25 @@ services:
     networks:
       - backend
 
+  blockchain-confirmation-worker:
+    build: .
+    restart: unless-stopped
+    command: ["node", "src/blockchain-confirmation-worker.js"]
+    environment:
+      NODE_ENV: production
+      MYSQL_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}
+      MYSQL_SSL: "false"
+      MYSQL_POOL_MAX: 10
+      CHAIN_RPC_URL: ${CHAIN_RPC_URL:?set CHAIN_RPC_URL in .env when blockchain confirmation is enabled}
+      CHAIN_ID: ${CHAIN_ID:?set CHAIN_ID in .env when blockchain confirmation is enabled}
+      CHAIN_CONFIRM_POLL_MS: ${CHAIN_CONFIRM_POLL_MS:-3000}
+      CHAIN_CONFIRM_BATCH_SIZE: ${CHAIN_CONFIRM_BATCH_SIZE:-50}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+
 networks:
   backend:
     driver: bridge
