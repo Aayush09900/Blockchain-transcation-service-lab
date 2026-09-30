@@ -433,8 +433,6 @@ export class MySqlTransactionStore {
   }
 }
 
-}
-
 function canonicalDecimal(value) {
   const stringValue = String(value);
 
