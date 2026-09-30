@@ -43,7 +43,7 @@
 - [x] Hardhat integration tests
 - [x] RPC failover across configured endpoints
 - [x] Process-local nonce management
-- [ ] Fee/gas policy
+- [x] Configurable gas ceiling and EIP-1559 fee ceilings
 - [x] Chain allowlist via exact configured chain ID
 - [x] Confirmation-depth policy
 - [x] Canonical block-hash revalidation and reorg recovery
