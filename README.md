@@ -339,3 +339,10 @@ The project now includes a GitHub Pages dashboard with the architecture, technol
 **Live dashboard:** https://aayush09900.github.io/Blockchain-transcation-service-lab/
 
 The backend itself is containerized and published through GitHub Actions/GHCR when the production CI gate succeeds. GitHub Pages is the public project showcase; it is not the API runtime.
+
+
+## Public runtime deployment
+
+The GitHub Pages dashboard is the public project showcase. For an actual internet-facing Node.js API and workers, the repository is prepared for Railway deployment using MySQL, MongoDB, private service networking, and separate API/outbox/confirmation services.
+
+See [docs/RAILWAY-DEPLOYMENT.md](docs/RAILWAY-DEPLOYMENT.md).
