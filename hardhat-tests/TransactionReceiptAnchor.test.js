@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { network } from "hardhat";
-import { EthersBlockchainAdapter } from "../src/blockchain-adapter.js";
+import { EthersBlockchainAdapter, EthersReceiptMonitor } from "../src/blockchain-adapter.js";
 
 const { ethers } = await network.create();
 
@@ -62,6 +62,36 @@ describe("TransactionReceiptAnchor", function () {
     assert.equal(broadcast.chainId, "31337");
 
     const receipt = await adapter.getTransactionReceipt(broadcast.txHash);
+    assert.equal(receipt.status, 1);
+    assert.equal(receipt.txHash, broadcast.txHash);
+  });
+
+
+  it("reconciles a mined transaction with the read-only receipt monitor", async function () {
+    const [sender, receiver] = await ethers.getSigners();
+
+    const contract = await ethers.deployContract("TransactionReceiptAnchor");
+    await contract.waitForDeployment();
+
+    const adapter = new EthersBlockchainAdapter({
+      provider: ethers.provider,
+      signer: sender,
+      contractAddress: await contract.getAddress()
+    });
+
+    const broadcast = await adapter.broadcastAnchorTransaction({
+      transactionId: "monitor-test",
+      sender: sender.address,
+      receiver: receiver.address,
+      amountWei: "3"
+    });
+
+    const monitor = new EthersReceiptMonitor({
+      provider: ethers.provider
+    });
+
+    const receipt = await monitor.getTransactionReceipt(broadcast.txHash);
+
     assert.equal(receipt.status, 1);
     assert.equal(receipt.txHash, broadcast.txHash);
   });
