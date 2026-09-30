@@ -5,15 +5,16 @@ import { sanitizeError } from "./logging.js";
 
 const mysqlUrl = process.env.MYSQL_URL;
 const rpcUrl = process.env.CHAIN_RPC_URL;
+const rpcUrls = process.env.CHAIN_RPC_URLS;
 const expectedChainId = process.env.CHAIN_ID
   ? Number(process.env.CHAIN_ID)
   : undefined;
 const anchorContractAddress =
   process.env.ANCHOR_CONTRACT_ADDRESS || undefined;
 
-if (!mysqlUrl || !rpcUrl || !anchorContractAddress) {
+if (!mysqlUrl || (!rpcUrl && !rpcUrls) || !anchorContractAddress) {
   throw new Error(
-    "MYSQL_URL, CHAIN_RPC_URL and ANCHOR_CONTRACT_ADDRESS are required for the blockchain confirmation worker"
+    "MYSQL_URL, CHAIN_RPC_URL or CHAIN_RPC_URLS, and ANCHOR_CONTRACT_ADDRESS are required for the blockchain confirmation worker"
   );
 }
 
@@ -29,7 +30,7 @@ const mysqlStore = new MySqlTransactionStore({
 
 const chain = EthersReceiptMonitor.fromConfig({
   rpcUrl,
-  rpcUrls: process.env.CHAIN_RPC_URLS,
+  rpcUrls,
   chainId: expectedChainId
 });
 
