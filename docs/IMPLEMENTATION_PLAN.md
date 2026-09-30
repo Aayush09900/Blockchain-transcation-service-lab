@@ -31,7 +31,7 @@ Add structured logs, correlation IDs, outbox lag, RPC errors, confirmation laten
 Validate reproducible builds, contract tests, application tests, security checks, and container startup.
 
 ## Phase 10 — Deployment
-Validate staging first. Production requires managed secrets, RPC redundancy, nonce/fee management, reorg handling, reconciliation, backups, disaster recovery, and operational alerting.
+Validate staging first. The repository now provides multi-RPC failover and per-process nonce management. Production still requires cross-instance nonce coordination, fee/gas policy, reorg handling, durable reconciliation beyond the bounded event lookback, managed secrets, backups, disaster recovery, centralized observability, and operational alerting.
 
 ## Definition of done
 Requirement -> implementation -> tests -> security review -> documentation -> CI -> meaningful Git commit.
