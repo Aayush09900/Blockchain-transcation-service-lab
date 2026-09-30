@@ -1,6 +1,16 @@
 const LABEL_NAME = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 const METRIC_NAME = /^[a-zA-Z_:][a-zA-Z0-9_:]*$/;
 
+const HTTP_METHODS = new Set([
+  "GET",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "OPTIONS",
+  "HEAD"
+]);
+
 const DEFAULT_HISTOGRAM_BUCKETS = Object.freeze([
   0.005,
   0.01,
@@ -101,7 +111,7 @@ export class MetricsRegistry {
 
   observe(name, labels = {}, value) {
     const metric = this.get(name, "histogram");
-    assertFiniteNumber(value, "histogram observation);
+    assertFiniteNumber(value, "histogram observation");
 
     const series = getHistogramSeries(metric, labels);
     series.count += 1;
