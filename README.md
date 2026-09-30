@@ -71,6 +71,8 @@ MySQL2 supports pooled connections, prepared statements, Promise APIs and SSL, w
 │   ├── security-vulnerabilities.test.js
 │   ├── blockchain-adapter.test.js
 │   ├── blockchain-submission-service.test.js
+│   ├── http-errors.test.js
+│   ├── metrics.test.js
 │   └── transaction-service.test.js
 ├── Dockerfile
 ├── docker-compose.yml
@@ -100,7 +102,7 @@ The current implementation supports:
 
 A transaction may move to `FAILED` from `CREATED`, `BROADCASTING`, or `SUBMITTED`.
 
-The `BROADCASTING` state represents an in-progress blockchain broadcast operation. A transaction hash is evidence of submission, not confirmation.
+The `BROADCASTING` state represents an in-progress blockchain broadcast operation. A transaction hash is evidence of submission, not confirmation. Confirmed transactions persist canonical block evidence and can enter `REORGED` when that evidence is replaced.
 
 ## Current persistence model
 
@@ -232,6 +234,15 @@ GET /health
 GET /ready
 ```
 
+### Metrics
+
+```
+GET /metrics
+Authorization: Bearer <API_TOKEN>
+```
+
+The endpoint exposes Prometheus-compatible application metrics with normalized route labels and bounded outcome categories.
+
 ### Create transaction
 
 ```
@@ -320,6 +331,8 @@ The application uses layered controls:
 - CI dependency audit
 - Hardhat contract tests
 - Repository secret scanning
+- Authenticated operational metrics
+- Structured worker telemetry
 
 Infrastructure firewall rules, TLS certificates, private subnets, managed secrets, backups and alerting must be configured at the deployment platform.
 
@@ -333,7 +346,7 @@ The repository is now structured as a production-oriented transaction service, b
 - fee policy
 - chain allowlisting
 - receipt/confirmation depth
-- reorg handling
+- canonical block evidence and reorg recovery
 - reconciliation
 - distributed rate limiting
 - metrics, tracing and alerting
