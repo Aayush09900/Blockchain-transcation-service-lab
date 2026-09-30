@@ -8,6 +8,8 @@ Controls:
 
 - TLS at deployment edge
 - authentication
+- minimum 32-character production bearer token
+- request-ID control-character rejection
 - rate limiting
 - request size limits
 - JSON/content-type validation
@@ -30,6 +32,7 @@ Controls:
 Controls:
 
 - authenticated connection string
+- TLS in production
 - retryable writes
 - majority write concern for audit documents
 - unique event IDs
@@ -42,6 +45,9 @@ Controls:
 - isolated ethers.js adapter
 - chain ID validation
 - explicit contract address
+- HTTPS RPC in production
+- pinned chain ID
+- verified transaction calldata/value/sender/receiver before confirmation
 - private key supplied only through secret configuration
 - no secrets stored in Git
 
@@ -89,3 +95,17 @@ Before handling real funds, add:
 - reorg handling
 - reconciliation
 - incident-response procedures
+
+
+## Supply-chain safety
+
+- GitHub Actions are pinned to immutable commit SHAs.
+- CI disables automatic npm package-manager caching when no lockfile is present.
+- Dependabot tracks npm, Actions and Docker updates.
+- The production image is scanned for HIGH/CRITICAL vulnerabilities.
+- The runtime image removes npm/npx after dependency installation to reduce the shipped tool surface.
+- Application containers run without Linux capabilities, with no-new-privileges, a read-only root filesystem and a hardened temporary filesystem.
+
+## Logging safety
+
+Application and worker error messages pass through centralized redaction before being emitted or stored as retry metadata. Connection-string credentials, bearer tokens, common secret assignments and control characters are removed.
