@@ -97,6 +97,43 @@ describe("TransactionReceiptAnchor", function () {
   });
 
 
+
+  it("recovers a broadcast transaction by indexed anchor event", async function () {
+    const [sender, receiver] = await ethers.getSigners();
+
+    const contract = await ethers.deployContract("TransactionReceiptAnchor");
+    await contract.waitForDeployment();
+
+    const monitor = EthersReceiptMonitor.fromConfig({
+      rpcUrl: "http://127.0.0.1:8545"
+    });
+
+    const adapter = new EthersBlockchainAdapter({
+      provider: ethers.provider,
+      signer: sender,
+      contractAddress: await contract.getAddress()
+    });
+
+    const transactionId = "recovery-test";
+    const broadcast = await adapter.broadcastAnchorTransaction({
+      transactionId,
+      sender: sender.address,
+      receiver: receiver.address,
+      amountWei: "7"
+    });
+
+    await ethers.provider.waitForTransaction(broadcast.txHash);
+
+    const recovered = await monitor.findAnchorTransaction({
+      transactionId,
+      contractAddress: await contract.getAddress(),
+      lookbackBlocks: 100
+    });
+
+    assert.equal(recovered.txHash, broadcast.txHash);
+    assert.equal(recovered.amountWei, "7");
+  });
+
   it("rejects a valid receipt when the on-chain anchor payload does not match the transaction record", async function () {
     const [sender, receiver, attacker] = await ethers.getSigners();
 
