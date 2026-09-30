@@ -156,6 +156,67 @@ export class EthersBlockchainAdapter {
   }
 }
 
+export class EthersReceiptMonitor {
+  constructor({ provider }) {
+    if (!provider) {
+      throw new Error("ethers provider is required");
+    }
+
+    this.provider = provider;
+  }
+
+  static fromConfig({
+    rpcUrl = process.env.CHAIN_RPC_URL,
+    chainId
+  } = {}) {
+    if (!rpcUrl) {
+      throw new Error("CHAIN_RPC_URL is required");
+    }
+
+    const provider = new JsonRpcProvider(
+      rpcUrl,
+      chainId ? Number(chainId) : undefined,
+      {
+        staticNetwork: chainId ? Number(chainId) : null
+      }
+    );
+
+    return new EthersReceiptMonitor({ provider });
+  }
+
+  async healthCheck(expectedChainId) {
+    const network = await this.provider.getNetwork();
+
+    if (
+      expectedChainId !== undefined &&
+      network.chainId !== BigInt(expectedChainId)
+    ) {
+      throw new Error(
+        `chain id mismatch: expected ${expectedChainId}, got ${network.chainId}`
+      );
+    }
+
+    return true;
+  }
+
+  async getTransactionReceipt(txHash) {
+    validateTransactionHash(txHash);
+
+    const receipt = await this.provider.getTransactionReceipt(txHash);
+
+    if (!receipt) {
+      return null;
+    }
+
+    return {
+      txHash: receipt.hash,
+      status: receipt.status,
+      blockNumber: receipt.blockNumber,
+      blockHash: receipt.blockHash
+    };
+  }
+}
+
 export function transactionIdToBytes32(transactionId) {
   if (typeof transactionId !== "string" || transactionId.length === 0) {
     throw new Error("transactionId is required");
