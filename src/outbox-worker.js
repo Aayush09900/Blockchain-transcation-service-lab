@@ -1,5 +1,6 @@
 import { MySqlTransactionStore } from "./mysql-store.js";
 import { MongoAuditStore } from "./mongo-audit-store.js";
+import { sanitizeError } from "./logging.js";
 
 const mysqlUrl = process.env.MYSQL_URL;
 const mongoUrl = process.env.MONGO_URL;
@@ -55,7 +56,7 @@ async function publishBatch() {
       } catch (error) {
         await mysqlStore.markOutboxFailed(
           event.id,
-          error instanceof Error ? error.message : String(error)
+          sanitizeError(error)
         );
       }
     }
