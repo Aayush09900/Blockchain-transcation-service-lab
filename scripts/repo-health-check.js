@@ -76,6 +76,39 @@ const gitignore = exists(".gitignore")
   ? fs.readFileSync(path.join(root, ".gitignore"), "utf8")
   : "";
 
+const trackedFiles = require("node:child_process")
+  .execFileSync("git", ["ls-files"], { encoding: "utf8" })
+  .split("\n")
+  .filter(Boolean);
+
+const secretPatterns = [
+  /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
+  /AKIA[0-9A-Z]{16}/,
+  /(?:aws_secret_access_key|private_key|seed_phrase)\s*[:=]\s*["']?[A-Za-z0-9_\-+/=]{16,}/i
+];
+
+for (const file of trackedFiles) {
+  if (
+    file.includes("node_modules/") ||
+    file.endsWith(".lock")
+  ) {
+    continue;
+  }
+
+  const absolute = path.join(root, file);
+
+  if (!fs.existsSync(absolute)) continue;
+
+  const text = fs.readFileSync(absolute, "utf8");
+
+  for (const pattern of secretPatterns) {
+    if (pattern.test(text)) {
+      failures.push(`possible secret material in tracked file: ${file}`);
+      break;
+    }
+  }
+}
+
 for (const requiredIgnore of [".env", "*.pem", "*.key", "node_modules/"]) {
   if (!gitignore.includes(requiredIgnore)) {
     failures.push(`.gitignore missing protection for ${requiredIgnore}`);
