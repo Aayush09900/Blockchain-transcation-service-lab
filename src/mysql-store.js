@@ -280,6 +280,8 @@ export class MySqlTransactionStore {
       `SELECT id, event_id, transaction_id, event_type, payload
        FROM transaction_outbox
        WHERE published_at IS NULL
+         AND dead_lettered_at IS NULL
+         AND (next_attempt_at IS NULL OR next_attempt_at <= CURRENT_TIMESTAMP(6))
        ORDER BY id ASC
        LIMIT ?`,
       [safeLimit]
@@ -293,19 +295,56 @@ export class MySqlTransactionStore {
       `UPDATE transaction_outbox
        SET published_at = CURRENT_TIMESTAMP(6),
            attempts = attempts + 1,
-           last_error = NULL
+           last_error = NULL,
+           next_attempt_at = NULL
        WHERE id = ? AND published_at IS NULL`,
       [id]
     );
   }
 
   async markOutboxFailed(id, message) {
+    const attemptsResult = await this.pool.execute(
+      "SELECT attempts FROM transaction_outbox WHERE id = ? AND published_at IS NULL",
+      [id]
+    );
+
+    if (attemptsResult[0].length === 0) return;
+
+    const attempts = Number(attemptsResult[0][0].attempts) + 1;
+    const maxAttempts = 10;
+
+    if (attempts >= maxAttempts) {
+      await this.pool.execute(
+        `UPDATE transaction_outbox
+         SET attempts = ?,
+             last_error = ?,
+             dead_lettered_at = CURRENT_TIMESTAMP(6),
+             next_attempt_at = NULL
+         WHERE id = ? AND published_at IS NULL`,
+        [
+          attempts,
+          String(message).slice(0, 1000),
+          id
+        ]
+      );
+      return;
+    }
+
+    const delaySeconds = Math.min(3600, 2 ** Math.min(attempts, 12));
+    const nextAttemptAt = new Date(Date.now() + delaySeconds * 1000);
+
     await this.pool.execute(
       `UPDATE transaction_outbox
-       SET attempts = attempts + 1,
-           last_error = ?
+       SET attempts = ?,
+           last_error = ?,
+           next_attempt_at = ?
        WHERE id = ? AND published_at IS NULL`,
-      [String(message).slice(0, 1000), id]
+      [
+        attempts,
+        String(message).slice(0, 1000),
+        nextAttemptAt,
+        id
+      ]
     );
   }
 }
