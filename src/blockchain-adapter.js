@@ -1,7 +1,9 @@
 import {
   Contract,
+  FallbackProvider,
   Interface,
   JsonRpcProvider,
+  NonceManager,
   Wallet,
   getAddress,
   getBytes,
@@ -55,29 +57,27 @@ export class EthersBlockchainAdapter {
 
   static fromConfig({
     rpcUrl = process.env.CHAIN_RPC_URL,
+    rpcUrls = process.env.CHAIN_RPC_URLS,
     privateKey = process.env.CHAIN_SIGNER_PRIVATE_KEY,
     contractAddress = process.env.ANCHOR_CONTRACT_ADDRESS,
     chainId,
     confirmationDepth = process.env.CHAIN_CONFIRMATIONS ?? "1"
   } = {}) {
-    if (!rpcUrl || !privateKey || !contractAddress) {
+    if (!privateKey || !contractAddress) {
       throw new Error(
-        "CHAIN_RPC_URL, CHAIN_SIGNER_PRIVATE_KEY and ANCHOR_CONTRACT_ADDRESS are required"
+        "CHAIN_SIGNER_PRIVATE_KEY and ANCHOR_CONTRACT_ADDRESS are required"
       );
     }
 
-    const provider = new JsonRpcProvider(
+    const providerConfig = createRpcProvider({
       rpcUrl,
-      chainId ? Number(chainId) : undefined,
-      {
-        staticNetwork: chainId ? Number(chainId) : null
-      }
-    );
-
-    const signer = new Wallet(privateKey, provider);
+      rpcUrls,
+      chainId
+    });
+    const signer = new NonceManager(new Wallet(privateKey, providerConfig.provider));
 
     return new EthersBlockchainAdapter({
-      provider,
+      provider: providerConfig.provider,
       signer,
       contractAddress,
       confirmationDepth
@@ -107,12 +107,22 @@ export class EthersBlockchainAdapter {
   }) {
     const bytes32Id = transactionIdToBytes32(transactionId);
 
-    const transaction = await this.contract.anchor(
-      bytes32Id,
-      sender,
-      receiver,
-      BigInt(amountWei)
-    );
+    let transaction;
+
+    try {
+      transaction = await this.contract.anchor(
+        bytes32Id,
+        sender,
+        receiver,
+        BigInt(amountWei)
+      );
+    } catch (error) {
+      // NonceManager may have reserved a nonce before an ambiguous RPC error.
+      // Resetting forces the next submission to reconcile with the node's
+      // current pending nonce instead of blindly reusing stale local state.
+      this.signer.reset();
+      throw error;
+    }
 
     return {
       txHash: transaction.hash,
@@ -306,22 +316,20 @@ export class EthersReceiptMonitor {
 
   static fromConfig({
     rpcUrl = process.env.CHAIN_RPC_URL,
+    rpcUrls = process.env.CHAIN_RPC_URLS,
     chainId,
     confirmationDepth = process.env.CHAIN_CONFIRMATIONS ?? "1"
   } = {}) {
-    if (!rpcUrl) {
-      throw new Error("CHAIN_RPC_URL is required");
-    }
-
-    const provider = new JsonRpcProvider(
+    const providerConfig = createRpcProvider({
       rpcUrl,
-      chainId ? Number(chainId) : undefined,
-      {
-        staticNetwork: chainId ? Number(chainId) : null
-      }
-    );
+      rpcUrls,
+      chainId
+    });
 
-    return new EthersReceiptMonitor({ provider, confirmationDepth });
+    return new EthersReceiptMonitor({
+      provider: providerConfig.provider,
+      confirmationDepth
+    });
   }
 
   async healthCheck(expectedChainId) {
@@ -510,4 +518,59 @@ function blockchainVerificationError(message) {
   error.code = "BLOCKCHAIN_VERIFICATION_FAILED";
   error.statusCode = 409;
   return error;
+}
+
+function createRpcProvider({ rpcUrl, rpcUrls, chainId }) {
+  const configuredUrls = [
+    ...(Array.isArray(rpcUrls)
+      ? rpcUrls
+      : String(rpcUrls ?? "")
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean)),
+    ...(rpcUrl ? [rpcUrl] : [])
+  ];
+
+  const urls = [...new Set(configuredUrls.filter(Boolean))];
+
+  if (urls.length === 0) {
+    throw new Error("CHAIN_RPC_URL or CHAIN_RPC_URLS is required");
+  }
+
+  const network = chainId
+    ? {
+        name: `chain-${Number(chainId)}`,
+        chainId: Number(chainId)
+      }
+    : undefined;
+
+  const providers = urls.map(
+    (url) =>
+      new JsonRpcProvider(url, network, {
+        staticNetwork: network ?? null
+      })
+  );
+
+  if (providers.length === 1) {
+    return {
+      provider: providers[0],
+      providerCount: 1
+    };
+  }
+
+  const fallback = new FallbackProvider(
+    providers.map((provider, index) => ({
+      provider,
+      priority: index + 1,
+      stallTimeout: 750,
+      weight: 1
+    })),
+    network,
+    { quorum: 1 }
+  );
+
+  return {
+    provider: fallback,
+    providerCount: providers.length
+  };
 }
