@@ -62,6 +62,7 @@ test("failed submission can retry without creating a second transaction", () => 
   assert.equal(retried.transaction.idempotencyKey, created.idempotencyKey);
   assert.equal(retried.transaction.status, TransactionStatus.BROADCASTING);
   assert.equal(retried.transaction.retryCount, 1);
+  assert.equal(retried.transaction.txHash, null);
   assert.equal(retried.retryAfterMs, 1_000);
 
   const duplicate = service.submit({
