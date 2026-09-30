@@ -17,7 +17,7 @@ The reference project reinforces several controls already present here:
 
 ## Controls added in this pass
 
-- GitHub Dependency Review on pull requests.
+- A dedicated dependency-audit workflow running npm audit on pull requests. GitHub Dependency Review was tested but cannot run until the repository's Dependency graph is enabled.
 - CodeQL analysis for JavaScript/TypeScript on pushes, pull requests, and weekly scheduled runs.
 - Both workflows use immutable commit references.
 - Dependency installation is already reproducible with the committed npm lockfile and npm ci.
