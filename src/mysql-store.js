@@ -72,7 +72,7 @@ export class MySqlTransactionStore {
       const [insertResult] = await connection.execute(
         `INSERT INTO transactions
           (id, idempotency_key, sender, receiver, amount, status)
-         VALUES (?, ?, ?, ?, CAST(? AS DECIMAL(65, 30)), 'CREATED')
+         VALUES (?, ?, ?, ?, CAST(? AS DECIMAL(65, 18)), 'CREATED')
          ON DUPLICATE KEY UPDATE id = id`,
         [
           id,
