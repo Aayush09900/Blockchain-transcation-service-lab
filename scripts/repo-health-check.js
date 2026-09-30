@@ -1,0 +1,96 @@
+import fs from "node:fs";
+import path from "node:path";
+import process from "node:process";
+
+const root = process.cwd();
+
+const requiredFiles = [
+  "package.json",
+  "README.md",
+  "SECURITY.md",
+  "SECURITY-TEST-REPORT.md",
+  "Dockerfile",
+  "docker-compose.yml",
+  "db/001_init.sql",
+  "src/http-server.js",
+  "src/http-errors.js",
+  "src/path-security.js",
+  "src/postgres-store.js",
+  "src/security.js",
+  "src/transaction-service.js",
+  "src/validation.js",
+  "test/transaction-service.test.js",
+  "test/security-vulnerabilities.test.js",
+  ".github/workflows/ci.yml",
+  ".github/workflows/security.yml"
+];
+
+const failures = [];
+
+function exists(relativePath) {
+  return fs.existsSync(path.join(root, relativePath));
+}
+
+for (const file of requiredFiles) {
+  if (!exists(file)) {
+    failures.push(`missing required file: ${file}`);
+  }
+}
+
+const packageJsonPath = path.join(root, "package.json");
+if (exists("package.json")) {
+  const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+
+  for (const script of ["test", "start", "start:core"]) {
+    if (!pkg.scripts?.[script]) {
+      failures.push(`missing npm script: ${script}`);
+    }
+  }
+
+  if (!pkg.dependencies?.pg) {
+    failures.push("missing pg dependency");
+  }
+}
+
+const compose = exists("docker-compose.yml")
+  ? fs.readFileSync(path.join(root, "docker-compose.yml"), "utf8")
+  : "";
+
+for (const forbidden of [
+  "change-this-password",
+  "change-this-api-token",
+  "password=secret",
+  "privateKey=",
+  "PRIVATE_KEY="
+]) {
+  if (compose.includes(forbidden)) {
+    failures.push(`possible hardcoded secret in docker-compose.yml: ${forbidden}`);
+  }
+}
+
+if (exists(".env")) {
+  failures.push(".env must not exist in the repository");
+}
+
+const gitignore = exists(".gitignore")
+  ? fs.readFileSync(path.join(root, ".gitignore"), "utf8")
+  : "";
+
+for (const requiredIgnore of [".env", "*.pem", "*.key", "node_modules/"]) {
+  if (!gitignore.includes(requiredIgnore)) {
+    failures.push(`.gitignore missing protection for ${requiredIgnore}`);
+  }
+}
+
+if (failures.length > 0) {
+  console.error("Repository health check failed:");
+
+  for (const failure of failures) {
+    console.error(`- ${failure}`);
+  }
+
+  process.exit(1);
+}
+
+console.log("Repository health check passed.");
+console.log(`Checked ${requiredFiles.length} required paths and security invariants.`);
