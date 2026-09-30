@@ -12,7 +12,8 @@ if (!mysqlUrl || !mongoUrl) {
 const mysqlStore = new MySqlTransactionStore({
   url: mysqlUrl,
   maxPoolSize: Number.parseInt(process.env.MYSQL_POOL_MAX ?? "10", 10),
-  ssl: process.env.MYSQL_SSL === "true"
+  ssl: process.env.MYSQL_SSL === "true",
+  leaseMs: Number.parseInt(process.env.OUTBOX_LEASE_MS ?? "60000", 10)
 });
 
 const mongoStore = new MongoAuditStore({
@@ -28,6 +29,11 @@ const intervalMs = Math.max(
   Number.parseInt(process.env.OUTBOX_POLL_MS ?? "1000", 10)
 );
 
+const batchSize = Math.max(
+  1,
+  Math.min(Number.parseInt(process.env.OUTBOX_BATCH_SIZE ?? "50", 10) || 50, 500)
+);
+
 let running = true;
 let processing = false;
 
@@ -37,7 +43,7 @@ async function publishBatch() {
   processing = true;
 
   try {
-    const events = await mysqlStore.claimOutboxBatch(100);
+    const events = await mysqlStore.claimOutboxBatch(batchSize);
 
     for (const event of events) {
       try {
@@ -47,7 +53,8 @@ async function publishBatch() {
           eventId: event.event_id,
           transactionId: event.transaction_id,
           eventType: event.event_type,
-          payload
+          payload,
+          occurredAt: event.created_at
         });
 
         const transaction = await mysqlStore.get(event.transaction_id);
@@ -102,7 +109,8 @@ await mongoStore.connect();
 
 console.log(JSON.stringify({
   event: "outbox_worker_started",
-  intervalMs
+  intervalMs,
+  batchSize
 }));
 
 await loop();
