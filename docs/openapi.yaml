@@ -29,6 +29,18 @@ paths:
           description: Dependencies are ready
         "503":
           description: Dependency is unavailable
+  /metrics:
+    get:
+      summary: Read authenticated Prometheus metrics
+      responses:
+        "200":
+          description: Prometheus exposition format
+          content:
+            text/plain:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /v1/transactions:
     post:
       summary: Create a transaction
@@ -94,7 +106,7 @@ paths:
         "200":
           description: Transaction confirmed
         "409":
-          description: Receipt is not confirmed yet or transaction reverted
+          description: Transaction is not ready for confirmation, receipt is not confirmed yet, or transaction reverted
   /v1/transactions/{id}/fail:
     post:
       summary: Mark a transaction failed
