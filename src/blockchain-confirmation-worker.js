@@ -57,6 +57,17 @@ let running = true;
 let processing = false;
 let inFlight = null;
 
+let batchesProcessed = 0;
+let recoveredCount = 0;
+let confirmedCount = 0;
+let reorgedCount = 0;
+let reorgRecoveredCount = 0;
+let failedCount = 0;
+let pendingCount = 0;
+let verificationErrorCount = 0;
+let rpcErrorCount = 0;
+let lastHeartbeatAt = 0;
+
 async function reconcileBatch() {
   if (processing) return;
 
@@ -64,6 +75,8 @@ async function reconcileBatch() {
   inFlight = (async () => {
     try {
       const broadcasting = await mysqlStore.listBroadcasting(batchSize);
+
+      batchesProcessed += 1;
 
       for (const transaction of broadcasting) {
         try {
@@ -74,6 +87,7 @@ async function reconcileBatch() {
           });
 
           if (!recovered) {
+            pendingCount += 1;
             continue;
           }
 
@@ -90,15 +104,21 @@ async function reconcileBatch() {
             await mysqlStore.transition(transaction.id, "SUBMITTED", {
               txHash: recovered.txHash
             });
+            recoveredCount += 1;
+          } else {
+            pendingCount += 1;
           }
         } catch (error) {
           if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
+            verificationErrorCount += 1;
             await mysqlStore.transition(transaction.id, "FAILED", {
               failureReason: "broadcast recovery verification failed"
             });
+            failedCount += 1;
             continue;
           }
 
+          rpcErrorCount += 1;
           console.error(JSON.stringify({
             event: "blockchain_broadcast_recovery_error",
             transactionId: transaction.id,
@@ -121,8 +141,10 @@ async function reconcileBatch() {
             await mysqlStore.transition(transaction.id, "REORGED", {
               failureReason: evidence.reason
             });
+            reorgedCount += 1;
           }
         } catch (error) {
+          rpcErrorCount += 1;
           console.error(JSON.stringify({
             event: "blockchain_reorg_check_error",
             transactionId: transaction.id,
@@ -150,15 +172,26 @@ async function reconcileBatch() {
               confirmedBlockNumber: verification.receipt.blockNumber,
               confirmedBlockHash: verification.receipt.blockHash
             });
+            reorgRecoveredCount += 1;
+          } else if (verification.reverted) {
+            await mysqlStore.transition(transaction.id, "FAILED", {
+              failureReason: "reorged blockchain transaction reverted"
+            });
+            failedCount += 1;
+          } else {
+            pendingCount += 1;
           }
         } catch (error) {
           if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
+            verificationErrorCount += 1;
             await mysqlStore.transition(transaction.id, "FAILED", {
               failureReason: "blockchain transaction no longer matches the stored intent after reorg"
             });
+            failedCount += 1;
             continue;
           }
 
+          rpcErrorCount += 1;
           console.error(JSON.stringify({
             event: "blockchain_reorg_recovery_error",
             transactionId: transaction.id,
@@ -186,19 +219,29 @@ async function reconcileBatch() {
               await mysqlStore.transition(transaction.id, "FAILED", {
                 failureReason: "blockchain transaction reverted"
               });
+              failedCount += 1;
+            } else {
+              pendingCount += 1;
             }
             continue;
           }
 
-          await mysqlStore.transition(transaction.id, "CONFIRMED");
+          await mysqlStore.transition(transaction.id, "CONFIRMED", {
+            confirmedBlockNumber: verification.receipt.blockNumber,
+            confirmedBlockHash: verification.receipt.blockHash
+          });
+          confirmedCount += 1;
         } catch (error) {
           if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
+            verificationErrorCount += 1;
             await mysqlStore.transition(transaction.id, "FAILED", {
               failureReason: "blockchain transaction verification failed"
             });
+            failedCount += 1;
             continue;
           }
 
+          rpcErrorCount += 1;
           console.error(JSON.stringify({
             event: "blockchain_confirmation_error",
             transactionId: transaction.id,
@@ -208,6 +251,22 @@ async function reconcileBatch() {
         }
       }
     } finally {
+      console.log(JSON.stringify({
+        event: "blockchain_confirmation_batch_processed",
+        batchSize,
+        totals: {
+          batchesProcessed,
+          recoveredCount,
+          confirmedCount,
+          reorgedCount,
+          reorgRecoveredCount,
+          failedCount,
+          pendingCount,
+          verificationErrorCount,
+          rpcErrorCount
+        }
+      }));
+
       inFlight = null;
       processing = false;
     }
@@ -224,6 +283,29 @@ async function loop() {
       console.error(JSON.stringify({
         event: "blockchain_confirmation_loop_error",
         message: sanitizeError(error)
+      }));
+    }
+
+    const now = Date.now();
+
+    if (now - lastHeartbeatAt >= 30_000) {
+      lastHeartbeatAt = now;
+      console.log(JSON.stringify({
+        event: "blockchain_confirmation_worker_heartbeat",
+        running,
+        processing,
+        timestamp: new Date(now).toISOString(),
+        totals: {
+          batchesProcessed,
+          recoveredCount,
+          confirmedCount,
+          reorgedCount,
+          reorgRecoveredCount,
+          failedCount,
+          pendingCount,
+          verificationErrorCount,
+          rpcErrorCount
+        }
       }));
     }
 
