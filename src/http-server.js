@@ -13,9 +13,9 @@ import { parseTransactionId } from "./path-security.js";
 import { toPublicHttpError } from "./http-errors.js";
 import {
   requireNonEmptyString,
-  validateTransactionHash,
   validateTransactionInput
 } from "./validation.js";
+import { submitViaBlockchain } from "./blockchain-submission-service.js";
 import { loadConfig } from "./config.js";
 import { sanitizeError } from "./logging.js";
 
@@ -252,13 +252,35 @@ const server = http.createServer(async (request, response) => {
       assertJsonRequest(request);
 
       const body = await readJson(request);
-      const transaction = await transitionTransaction(
-        parseTransactionId(submitMatch[1]),
-        "SUBMITTED",
-        { txHash: validateTransactionHash(body.txHash) }
+
+      if (body.txHash !== undefined) {
+        const error = new Error(
+          "txHash is service-controlled and cannot be supplied to /submit"
+        );
+        error.code = "EXTERNAL_TX_HASH_NOT_ALLOWED";
+        error.statusCode = 400;
+        throw error;
+      }
+
+      const transaction = await getTransaction(
+        parseTransactionId(submitMatch[1])
       );
 
-      json(response, requestId, 200, transaction);
+      const result = await submitViaBlockchain({
+        transaction,
+        blockchain,
+        transitionTransaction
+      });
+
+      json(
+        response,
+        requestId,
+        result.reused ? 200 : 202,
+        {
+          transaction: result.transaction,
+          ...(result.blockchain ? { blockchain: result.blockchain } : {})
+        }
+      );
       return;
     }
 
@@ -335,78 +357,27 @@ const server = http.createServer(async (request, response) => {
     );
 
     if (request.method === "POST" && anchorMatch) {
-      if (!blockchain) {
-        const error = new Error("blockchain adapter is disabled");
-        error.code = "BLOCKCHAIN_DISABLED";
-        error.statusCode = 503;
-        throw error;
-      }
-
       const transaction = await getTransaction(
         parseTransactionId(anchorMatch[1])
       );
 
-      if (transaction.status !== "CREATED") {
-        const error = new Error(
-          `transaction cannot be anchored from status ${transaction.status}`
-        );
-        error.code = "INVALID_TRANSITION";
-        error.statusCode = 409;
-        throw error;
-      }
+      const result = await submitViaBlockchain({
+        transaction,
+        blockchain,
+        transitionTransaction
+      });
 
-      const broadcasting = await transitionTransaction(
-        transaction.id,
-        "BROADCASTING"
+      json(
+        response,
+        requestId,
+        result.reused ? 200 : 202,
+        {
+          transaction: result.transaction,
+          ...(result.blockchain ? { blockchain: result.blockchain } : {}),
+          nextStep: `POST /v1/transactions/${transaction.id}/confirm after the transaction is mined`
+        }
       );
-
-      let result;
-
-      try {
-        result = await blockchain.broadcastAnchorTransaction({
-          transactionId: broadcasting.id,
-          sender: broadcasting.from,
-          receiver: broadcasting.to,
-          amountWei: parseEther(broadcasting.amount)
-        });
-      } catch (blockchainError) {
-        await transitionTransaction(
-          broadcasting.id,
-          "FAILED",
-          {
-            failureReason:
-              blockchainError instanceof Error
-                ? blockchainError.message
-                : String(blockchainError)
-          }
-        );
-
-        throw blockchainError;
-      }
-
-      try {
-        const updated = await transitionTransaction(
-          broadcasting.id,
-          "SUBMITTED",
-          { txHash: result.txHash }
-        );
-
-        json(response, requestId, 202, {
-          transaction: updated,
-          blockchain: result,
-          nextStep: `POST /v1/transactions/${broadcasting.id}/confirm after the transaction is mined`
-        });
-        return;
-      } catch (persistenceError) {
-        console.error(JSON.stringify({
-          event: "blockchain_broadcast_persistence_error",
-          requestId,
-          transactionId: broadcasting.id,
-          txHash: result.txHash,
-          message: sanitizeError(persistenceError)
-        }));
-        throw persistenceError;
-      }
+      return;
     }
 
     const match = pathname.match(/^\/v1\/transactions\/([^/]+)$/);
@@ -438,12 +409,18 @@ const server = http.createServer(async (request, response) => {
     const publicError = toPublicHttpError(error);
 
     if (publicError.statusCode >= 500) {
-      console.error(JSON.stringify({
+      const logEntry = {
         event: "request_error",
         requestId,
         name: error?.name ?? "Error",
         code: error?.code ?? "INTERNAL"
-      }));
+      };
+
+      if (error?.code === "BLOCKCHAIN_BROADCAST_UNKNOWN" && error?.cause) {
+        logEntry.cause = sanitizeError(error.cause);
+      }
+
+      console.error(JSON.stringify(logEntry));
     }
 
     json(response, requestId, publicError.statusCode, {
