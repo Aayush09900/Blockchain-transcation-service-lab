@@ -43,6 +43,8 @@ Returns the authoritative MySQL transaction record.
 
 Transaction IDs are restricted to UUID format.
 
+A confirmed blockchain transaction also exposes its canonical `confirmedBlockNumber` and `confirmedBlockHash` when blockchain verification is enabled.
+
 ## POST /v1/transactions/:id/submit
 
 The request body is empty:
@@ -66,6 +68,8 @@ When blockchain mode is enabled, the service verifies the stored transaction has
 Moves:
 
 `SUBMITTED -> CONFIRMED`
+
+If a previously confirmed block is reorganized, the confirmation worker moves the record to `REORGED` while it revalidates the transaction against the canonical chain.
 
 If no receipt is available yet, the endpoint returns `409`. If the receipt status is reverted, the transaction is marked `FAILED`.
 
