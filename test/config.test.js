@@ -39,7 +39,7 @@ test("production configuration requires authentication and both databases", () =
       loadConfig({
         NODE_ENV: "production",
         PORT: "3000",
-        API_TOKEN: "long-test-token",
+        API_TOKEN: "long-test-token-123456789012345678901234",
         MYSQL_URL: "",
         MONGO_URL: "mongodb://example",
         BLOCKCHAIN_ENABLED: "false"
@@ -52,7 +52,7 @@ test("production configuration requires authentication and both databases", () =
       loadConfig({
         NODE_ENV: "production",
         PORT: "3000",
-        API_TOKEN: "long-test-token",
+        API_TOKEN: "long-test-token-123456789012345678901234",
         MYSQL_URL: "mysql://example",
         MONGO_URL: "",
         BLOCKCHAIN_ENABLED: "false"
@@ -65,13 +65,14 @@ test("production MySQL TLS defaults on unless explicitly disabled", () => {
   const config = loadConfig({
     NODE_ENV: "production",
     PORT: "3000",
-    API_TOKEN: "long-test-token",
+    API_TOKEN: "long-test-token-123456789012345678901234",
     MYSQL_URL: "mysql://example",
     MONGO_URL: "mongodb://example",
     BLOCKCHAIN_ENABLED: "false"
   });
 
   assert.equal(config.mysqlSsl, true);
+  assert.equal(config.mongoTls, true);
 });
 
 test("invalid CORS origins are rejected", () => {
@@ -101,5 +102,64 @@ test("blockchain configuration is mandatory when enabled", () => {
         BLOCKCHAIN_ENABLED: "true"
       }),
     /CHAIN_RPC_URL, ANCHOR_CONTRACT_ADDRESS, and CHAIN_SIGNER_PRIVATE_KEY/
+  );
+});
+
+
+test("production rejects short API tokens", () => {
+  assert.throws(
+    () =>
+      loadConfig({
+        NODE_ENV: "production",
+        API_TOKEN: "short-token-123",
+        MYSQL_URL: "mysql://example",
+        MONGO_URL: "mongodb://example",
+        BLOCKCHAIN_ENABLED: "false"
+      }),
+    /at least 32 characters/
+  );
+});
+
+test("blockchain mode requires a pinned chain ID and secure production RPC", () => {
+  const base = {
+    NODE_ENV: "production",
+    API_TOKEN: "long-test-token-123456789012345678901234",
+    MYSQL_URL: "mysql://example",
+    MONGO_URL: "mongodb://example",
+    BLOCKCHAIN_ENABLED: "true",
+    CHAIN_RPC_URL: "http://rpc.example",
+    CHAIN_ID: "11155111",
+    ANCHOR_CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000001",
+    CHAIN_SIGNER_PRIVATE_KEY: "0x1111111111111111111111111111111111111111111111111111111111111111"
+  };
+
+  assert.throws(
+    () => loadConfig(base),
+    /CHAIN_RPC_URL must use HTTPS in production/
+  );
+
+  assert.throws(
+    () => loadConfig({ ...base, CHAIN_RPC_URL: "https://rpc.example", CHAIN_ID: "" }),
+    /CHAIN_RPC_URL, CHAIN_ID/
+  );
+});
+
+test("production CORS origins must use HTTPS and cannot contain credentials", () => {
+  const base = {
+    NODE_ENV: "production",
+    API_TOKEN: "long-test-token-123456789012345678901234",
+    MYSQL_URL: "mysql://example",
+    MONGO_URL: "mongodb://example",
+    BLOCKCHAIN_ENABLED: "false"
+  };
+
+  assert.throws(
+    () => loadConfig({ ...base, CORS_ORIGIN: "http://example.com" }),
+    /CORS_ORIGIN must use HTTPS/
+  );
+
+  assert.throws(
+    () => loadConfig({ ...base, CORS_ORIGIN: "https://user:pass@example.com" }),
+    /must not contain credentials/
   );
 });
