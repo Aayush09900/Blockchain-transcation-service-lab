@@ -18,6 +18,10 @@ import {
 import { submitViaBlockchain } from "./blockchain-submission-service.js";
 import { loadConfig } from "./config.js";
 import { sanitizeError } from "./logging.js";
+import {
+  createApplicationMetrics,
+  routeTemplate
+} from "./metrics.js";
 
 const config = loadConfig();
 
@@ -25,6 +29,8 @@ const rateLimit = createRateLimiter({
   maxRequests: config.rateLimitMax,
   maxClients: config.rateLimitMaxClients
 });
+
+const metrics = createApplicationMetrics();
 
 const mysqlStore = new MySqlTransactionStore({
   url: config.mysqlUrl,
@@ -148,7 +154,43 @@ async function transitionTransaction(id, nextStatus, patch = {}) {
   return mysqlStore.transition(id, nextStatus, patch);
 }
 
+function normalizeHttpMethod(method) {
+  return new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
+    .has(method)
+    ? method
+    : "OTHER";
+}
+
 const server = http.createServer(async (request, response) => {
+  const requestStartedAt = process.hrtime.bigint();
+  const requestRoute = routeTemplate(request.url ?? "/");
+  let metricsRecorded = false;
+  const originalEnd = response.end.bind(response);
+
+  response.end = (...args) => {
+    if (!metricsRecorded) {
+      metricsRecorded = true;
+      const durationSeconds =
+        Number(process.hrtime.bigint() - requestStartedAt) / 1e9;
+
+      metrics.increment("tx_service_http_requests_total", {
+        method: normalizeHttpMethod(request.method),
+        route: requestRoute,
+        status: String(response.statusCode ?? 200)
+      });
+      metrics.observe(
+        "tx_service_http_request_duration_seconds",
+        {
+          method: normalizeHttpMethod(request.method),
+          route: requestRoute
+        },
+        durationSeconds
+      );
+    }
+
+    return originalEnd(...args);
+  };
+
   const incomingRequestId =
     request.headers["x-request-id"]?.toString() || randomUUID();
 
@@ -235,6 +277,18 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === "GET" && pathname === "/metrics") {
+      authenticate(request, config.apiToken);
+
+      response.writeHead(200, {
+        "Content-Type": "text/plain; version=0.0.4; charset=utf-8",
+        "X-Request-ID": requestId,
+        "Cache-Control": "no-store"
+      });
+      response.end(metrics.renderPrometheus());
+      return;
+    }
+
     authenticate(request, config.apiToken);
 
     if (request.method === "POST" && pathname === "/v1/transactions") {
@@ -275,6 +329,10 @@ const server = http.createServer(async (request, response) => {
         transitionTransaction
       });
 
+      metrics.increment("tx_service_blockchain_broadcast_total", {
+        outcome: result.reused ? "reused" : "submitted"
+      });
+
       json(
         response,
         requestId,
@@ -294,6 +352,7 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "POST" && confirmMatch) {
       const transactionId = parseTransactionId(confirmMatch[1]);
       const transaction = await getTransaction(transactionId);
+      let confirmationEvidence = {};
 
       if (blockchain && transaction.txHash) {
         const verification = await blockchain.verifySubmittedTransaction({
@@ -302,6 +361,14 @@ const server = http.createServer(async (request, response) => {
           receiver: transaction.to,
           amountWei: parseEther(transaction.amount),
           txHash: transaction.txHash
+        });
+
+        metrics.increment("tx_service_blockchain_verification_total", {
+          outcome: verification.confirmed
+            ? "confirmed"
+            : verification.reverted
+              ? "reverted"
+              : "pending"
         });
 
         if (!verification.confirmed) {
@@ -322,17 +389,17 @@ const server = http.createServer(async (request, response) => {
           error.statusCode = 409;
           throw error;
         }
+
+        confirmationEvidence = {
+          confirmedBlockNumber: verification.receipt.blockNumber,
+          confirmedBlockHash: verification.receipt.blockHash
+        };
       }
 
       const confirmed = await transitionTransaction(
         transactionId,
         "CONFIRMED",
-        blockchain
-          ? {
-              confirmedBlockNumber: verification.receipt.blockNumber,
-              confirmedBlockHash: verification.receipt.blockHash
-            }
-          : {}
+        confirmationEvidence
       );
 
       json(response, requestId, 200, confirmed);
@@ -374,6 +441,10 @@ const server = http.createServer(async (request, response) => {
         transaction,
         blockchain,
         transitionTransaction
+      });
+
+      metrics.increment("tx_service_blockchain_broadcast_total", {
+        outcome: result.reused ? "reused" : "submitted"
       });
 
       const responseBody = {
@@ -421,6 +492,20 @@ const server = http.createServer(async (request, response) => {
 
     json(response, requestId, 404, { error: "not found" });
   } catch (error) {
+    if (error?.code === "BLOCKCHAIN_BROADCAST_UNKNOWN") {
+      metrics.increment("tx_service_blockchain_broadcast_total", {
+        outcome: "unknown"
+      });
+    } else if (error?.code === "BLOCKCHAIN_DISABLED") {
+      metrics.increment("tx_service_blockchain_broadcast_total", {
+        outcome: "disabled"
+      });
+    } else if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
+      metrics.increment("tx_service_blockchain_verification_total", {
+        outcome: "rejected"
+      });
+    }
+
     const publicError = toPublicHttpError(error);
 
     if (publicError.statusCode >= 500) {
