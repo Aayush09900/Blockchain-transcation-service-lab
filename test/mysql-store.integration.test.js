@@ -7,6 +7,23 @@ import { MySqlTransactionStore } from "../src/mysql-store.js";
 const runIntegration = process.env.RUN_INTEGRATION_TESTS === "true";
 const mysqlUrl = process.env.MYSQL_URL ?? "";
 
+async function poolForTest(url, callback) {
+  const parsed = new URL(url);
+  const testPool = mysql.createPool({
+    host: parsed.hostname,
+    port: parsed.port ? Number(parsed.port) : 3306,
+    user: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
+    database: decodeURIComponent(parsed.pathname.replace(/^\//, ""))
+  });
+
+  try {
+    return await callback(testPool);
+  } finally {
+    await testPool.end();
+  }
+}
+
 test(
   "MySQL store enforces idempotency, lifecycle, and outbox semantics",
   { skip: !runIntegration || !mysqlUrl },
@@ -101,6 +118,19 @@ test(
         competingEvents.some((event) => events.some((claimed) => claimed.id === event.id)),
         false
       );
+
+      const reclaimedEvent = events[0];
+      await poolForTest(mysqlUrl, async (testPool) => {
+        await testPool.execute(
+          "UPDATE transaction_outbox SET claimed_until = CURRENT_TIMESTAMP(6) - INTERVAL 1 SECOND WHERE id = ?",
+          [reclaimedEvent.id]
+        );
+      });
+
+      const recoveredEvents = await competingStore.claimOutboxBatch(1);
+      assert.equal(recoveredEvents[0]?.id, reclaimedEvent.id);
+
+      await store.markOutboxPublished(reclaimedEvent.id);
 
       const confirmed = await store.transition(id, "CONFIRMED");
 
