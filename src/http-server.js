@@ -11,7 +11,7 @@ import {
 } from "./security.js";
 import { parseTransactionId } from "./path-security.js";
 import { toPublicHttpError } from "./http-errors.js";
-import { validateTransactionInput, requireNonEmptyString } from "./validation.js";
+import { validateTransactionInput, validateTransactionHash, requireNonEmptyString } from "./validation.js";
 import { loadConfig } from "./config.js";
 
 const config = loadConfig();
