@@ -580,17 +580,12 @@ function createRpcProvider({ rpcUrl, rpcUrls, chainId }) {
     throw new Error("CHAIN_RPC_URL or CHAIN_RPC_URLS is required");
   }
 
-  const network = chainId
-    ? {
-        name: `chain-${Number(chainId)}`,
-        chainId: Number(chainId)
-      }
-    : undefined;
+  const network = chainId !== undefined ? Number(chainId) : undefined;
 
   const providers = urls.map(
     (url) =>
       new JsonRpcProvider(url, network, {
-        staticNetwork: network ?? null
+        staticNetwork: network !== undefined ? true : null
       })
   );
 
