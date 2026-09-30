@@ -47,19 +47,19 @@ test(
       const first = await store.createOrGet({
         id,
         idempotencyKey: key,
-        from: "0xsender",
-        to: "0xreceiver",
-        amount: "12345678901234567890.00"
+        from: "0x0000000000000000000000000000000000000001",
+        to: "0x0000000000000000000000000000000000000002",
+        amount: "1234567890.123456789"
       });
 
       assert.equal(first.status, "CREATED");
-      assert.equal(first.amount, "12345678901234567890");
+      assert.equal(first.amount, "1234567890.123456789");
 
       const duplicate = await store.createOrGet({
         id: randomUUID(),
         idempotencyKey: key,
-        from: "0xsender",
-        to: "0xreceiver",
+        from: "0x0000000000000000000000000000000000000001",
+        to: "0x0000000000000000000000000000000000000002",
         amount: "12345678901234567890"
       });
 
@@ -70,15 +70,15 @@ test(
           store.createOrGet({
             id: randomUUID(),
             idempotencyKey: key,
-            from: "0xsender",
-            to: "0xother",
+            from: "0x0000000000000000000000000000000000000001",
+            to: "0x0000000000000000000000000000000000000003",
             amount: "12345678901234567890"
           }),
         /idempotency key was already used/
       );
 
       const submitted = await store.transition(id, "SUBMITTED", {
-        txHash: "0xintegrationhash"
+        txHash: "0x2222222222222222222222222222222222222222222222222222222222222222"
       });
 
       assert.equal(submitted.status, "SUBMITTED");
