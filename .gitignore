@@ -10,3 +10,7 @@ secrets/
 coverage/
 dist/
 .DS_Store
+
+artifacts/
+cache/
+.hardhat/
