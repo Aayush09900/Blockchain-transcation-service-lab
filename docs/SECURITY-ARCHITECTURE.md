@@ -1,42 +1,91 @@
 # Security Architecture
 
-## Layered protection model
+## Trust boundaries
 
-### 1. Network edge
+### Internet -> API
 
-- Put the service behind HTTPS/TLS.
-- Allow only required inbound ports.
-- Keep databases and internal queues on private networks.
-- Use cloud firewall or security-group rules to restrict traffic.
+Controls:
 
-### 2. Application edge
+- TLS at deployment edge
+- authentication
+- rate limiting
+- request size limits
+- JSON/content-type validation
+- CORS allowlist
+- security headers
 
-- Authenticate protected requests.
-- Authorize actions by role or scope.
-- Enforce payload size and schema limits.
-- Apply per-client and per-IP rate limits.
-- Use request IDs for tracing.
+### API -> MySQL
 
-### 3. Transaction safety
+Controls:
 
-- Require an idempotency key for mutating requests.
-- Reject invalid state transitions.
-- Separate internal IDs from blockchain transaction hashes.
-- Never treat a submitted transaction as confirmed without chain evidence.
+- pooled connections
+- parameterized/prepared queries
+- MySQL unique constraints
+- row locking
+- ACID transaction boundaries
+- exact decimal storage
 
-### 4. Secret protection
+### API/Worker -> MongoDB
 
-- Never store private keys, seed phrases, RPC credentials, or API secrets in Git.
-- Use a secret manager or environment-level configuration.
-- Rotate credentials after suspected exposure.
+Controls:
 
-### 5. Observability
+- authenticated connection string
+- retryable writes
+- majority write concern for audit documents
+- unique event IDs
+- separate database responsibility from the financial source of truth
 
-- Record structured audit events.
-- Monitor repeated failures and retry storms.
-- Alert on authentication anomalies and unexpected transaction-state changes.
-- Never log secrets.
+### Worker -> Blockchain
 
-## Important limitation
+Controls:
 
-This repository is a learning lab. These controls describe the hardening architecture required for a production deployment; they are not a claim that the current code is production-ready or a substitute for infrastructure-level firewall configuration and security review.
+- isolated ethers.js adapter
+- chain ID validation
+- explicit contract address
+- private key supplied only through secret configuration
+- no secrets stored in Git
+
+## Secret policy
+
+Never commit:
+
+- private keys
+- seed phrases
+- RPC API keys
+- MySQL passwords
+- MongoDB passwords
+- production bearer tokens
+
+Use managed secrets for deployment.
+
+## Transaction safety
+
+- Require idempotency keys.
+- Keep the authoritative state in MySQL.
+- Use transactional outbox writes.
+- Reject invalid status transitions.
+- Never mark a transaction CONFIRMED solely because an API request succeeded.
+- Confirm blockchain receipts and confirmation depth before finalizing real-money workflows.
+
+## Audit safety
+
+MongoDB is a read/audit model, not the ledger.
+
+If MongoDB is unavailable, the MySQL outbox retains the event for retry.
+
+## Blockchain safety
+
+The example contract is intentionally non-custodial and only anchors transaction metadata.
+
+Before handling real funds, add:
+
+- audited custody/signing architecture
+- nonce management
+- RPC failover
+- chain allowlists
+- gas/fee limits
+- receipt verification
+- confirmation-depth rules
+- reorg handling
+- reconciliation
+- incident-response procedures
