@@ -7,7 +7,7 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm install --omit=dev --ignore-scripts --no-audit --no-fund \
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
     && npm cache clean --force \
     && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
