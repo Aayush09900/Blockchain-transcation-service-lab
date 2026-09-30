@@ -107,6 +107,10 @@ Before handling real funds, add:
 - The runtime image removes npm/npx after dependency installation to reduce the shipped tool surface.
 - Application containers run without Linux capabilities, with no-new-privileges, a read-only root filesystem and a hardened temporary filesystem.
 
+## Observability safety
+
+The authenticated `/metrics` endpoint uses normalized route labels and bounded categorical outcomes. Transaction IDs, request IDs, transaction hashes, credentials, and payloads are excluded from metric labels. Worker telemetry uses the centralized log-sanitization boundary.
+
 ## Logging safety
 
 Application and worker error messages pass through centralized redaction before being emitted or stored as retry metadata. Connection-string credentials, bearer tokens, common secret assignments and control characters are removed.
