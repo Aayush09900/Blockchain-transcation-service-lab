@@ -51,6 +51,7 @@ MySQL2 supports pooled connections, prepared statements, Promise APIs and SSL, w
 │   └── repo-health-check.js
 ├── src/
 │   ├── blockchain-adapter.js
+│   ├── blockchain-submission-service.js
 │   ├── config.js
 │   ├── http-errors.js
 │   ├── http-server.js
@@ -68,6 +69,8 @@ MySQL2 supports pooled connections, prepared statements, Promise APIs and SSL, w
 │   ├── mongo-audit-store.integration.test.js
 │   ├── mysql-store.integration.test.js
 │   ├── security-vulnerabilities.test.js
+│   ├── blockchain-adapter.test.js
+│   ├── blockchain-submission-service.test.js
 │   └── transaction-service.test.js
 ├── Dockerfile
 ├── docker-compose.yml
