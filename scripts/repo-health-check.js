@@ -28,7 +28,7 @@ const requiredFiles = [
   "src/validation.js",
   "test/transaction-service.test.js",
   "test/config.test.js",
-  "test/postgres-store.integration.test.js",
+  "test/mysql-store.integration.test.js",
   "test/security-vulnerabilities.test.js",
   ".github/workflows/ci.yml",
   ".github/workflows/security.yml"
@@ -56,8 +56,16 @@ if (exists("package.json")) {
     }
   }
 
-  if (!pkg.dependencies?.pg) {
-    failures.push("missing pg dependency");
+  for (const dependency of ["mysql2", "mongodb", "ethers"]) {
+    if (!pkg.dependencies?.[dependency]) {
+      failures.push(`missing runtime dependency: ${dependency}`);
+    }
+  }
+
+  for (const dependency of ["hardhat", "@nomicfoundation/hardhat-ethers"]) {
+    if (!pkg.devDependencies?.[dependency]) {
+      failures.push(`missing development dependency: ${dependency}`);
+    }
   }
 }
 
