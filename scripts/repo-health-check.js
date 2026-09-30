@@ -29,6 +29,7 @@ const requiredFiles = [
   "test/transaction-service.test.js",
   "test/config.test.js",
   "test/mysql-store.integration.test.js",
+  "test/mongo-audit-store.integration.test.js",
   "test/security-vulnerabilities.test.js",
   ".github/workflows/ci.yml",
   ".github/workflows/security.yml"
