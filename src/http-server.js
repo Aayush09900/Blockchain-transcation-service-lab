@@ -348,7 +348,16 @@ const server = http.createServer(async (request, response) => {
       const transaction = await getTransaction(transactionId);
       let verification = null;
 
-      if (blockchain && transaction.txHash) {
+      if (blockchain) {
+        if (!transaction.txHash) {
+          const error = new Error(
+            "transaction must be SUBMITTED before blockchain confirmation"
+          );
+          error.code = "TRANSACTION_NOT_SUBMITTED";
+          error.statusCode = 409;
+          throw error;
+        }
+
         verification = await blockchain.verifySubmittedTransaction({
           transactionId,
           sender: transaction.from,
