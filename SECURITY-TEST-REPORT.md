@@ -113,3 +113,13 @@ Two CI regressions were found during the multi-database and Hardhat refactor:
 A container-publish workflow issue was also found: the original pinned build-push-action reference did not resolve. It is now updated to a valid published action release, and manual dispatch uses the main branch explicitly.
 
 Historical CI review notes are retained here for auditability. Before the current head is treated as validated, both Transaction Service CI and Security Checks must complete successfully, including the syntax, application, Hardhat, repository-health, dependency-audit, and container-scan gates where applicable.
+
+## Current observability controls
+
+- Authenticated `/metrics` endpoint.
+- Low-cardinality request counters and latency histogram.
+- Broadcast and verification outcome counters.
+- Outbox event lag and publish/failure telemetry.
+- Confirmation/recovery, pending, failure, reorg, and RPC-error telemetry.
+- Worker heartbeats for liveness visibility.
+- Logs sanitized through the centralized redaction utility.
