@@ -22,6 +22,26 @@ test("development configuration accepts MySQL and MongoDB settings", () => {
   assert.equal(config.blockchainEnabled, false);
 });
 
+test("numeric configuration values reject malformed integers", () => {
+  const base = {
+    NODE_ENV: "development",
+    API_TOKEN: "",
+    MYSQL_URL: "",
+    MONGO_URL: "",
+    BLOCKCHAIN_ENABLED: "false"
+  };
+
+  for (const value of ["3000.5", "3000abc", "-1", "1e3"]) {
+    assert.throws(
+      () => loadConfig({ ...base, PORT: value }),
+      /PORT must be a positive integer/
+    );
+  }
+
+  const config = loadConfig({ ...base, PORT: " 3000 " });
+  assert.equal(config.port, 3000);
+});
+
 test("production configuration requires authentication and both databases", () => {
   assert.throws(
     () =>
