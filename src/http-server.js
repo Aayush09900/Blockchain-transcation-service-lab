@@ -254,15 +254,90 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "POST" && submitMatch) {
       assertJsonRequest(request);
 
+      const transactionId = parseTransactionId(submitMatch[1]);
       const body = await readJson(request);
-      const transaction = await transitionTransaction(
-        parseTransactionId(submitMatch[1]),
-        "SUBMITTED",
-        { txHash: validateTransactionHash(body.txHash) }
+      const current = await getTransaction(transactionId);
+
+      if (!blockchain) {
+        if (!config.allowManualBlockchainState) {
+          const error = new Error("manual blockchain state changes are disabled");
+          error.code = "MANUAL_BLOCKCHAIN_STATE_DISABLED";
+          error.statusCode = 503;
+          throw error;
+        }
+
+        const transaction = await transitionTransaction(
+          transactionId,
+          "SUBMITTED",
+          { txHash: validateTransactionHash(body.txHash) }
+        );
+
+        json(response, requestId, 200, transaction);
+        return;
+      }
+
+      const amountWei = parseEther(current.amount);
+      let prepared;
+
+      if (body.signedTransaction !== undefined) {
+        const verified = validateSignedTransactionIntent({
+          serializedTransaction: body.signedTransaction,
+          sender: current.from,
+          receiver: current.to,
+          amountWei,
+          expectedChainId: config.chainId
+        });
+
+        prepared = {
+          serializedTransaction: verified.serializedTransaction,
+          txHash: verified.txHash
+        };
+      } else {
+        prepared = await blockchain.prepareSignedTransfer({
+          sender: current.from,
+          receiver: current.to,
+          amountWei,
+          chainId: config.chainId
+        });
+      }
+
+      const broadcasting = await transitionTransaction(
+        transactionId,
+        "BROADCASTING",
+        {
+          txHash: prepared.txHash,
+          signedTransaction: prepared.serializedTransaction
+        }
       );
 
-      json(response, requestId, 200, transaction);
-      return;
+      try {
+        const broadcast = await blockchain.broadcastSignedTransaction({
+          serializedTransaction: broadcasting.signedTransaction,
+          expectedTxHash: broadcasting.txHash
+        });
+
+        const submitted = await transitionTransaction(
+          transactionId,
+          "SUBMITTED",
+          { txHash: broadcast.txHash }
+        );
+
+        json(response, requestId, 202, submitted);
+        return;
+      } catch (broadcastError) {
+        if (broadcastError?.code === "BLOCKCHAIN_BROADCAST_UNCERTAIN") {
+          throw broadcastError;
+        }
+
+        await transitionTransaction(transactionId, "FAILED", {
+          failureReason:
+            broadcastError instanceof Error
+              ? broadcastError.message
+              : String(broadcastError)
+        });
+
+        throw broadcastError;
+      }
     }
 
     const confirmMatch = pathname.match(
