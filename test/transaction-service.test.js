@@ -119,3 +119,53 @@ test("rejects invalid amounts and missing idempotency keys", () => {
     /amount must be positive/
   );
 });
+
+
+test("rejects reusing an idempotency key for a different request", () => {
+  const service = new TransactionService();
+
+  service.submit({
+    idempotencyKey: "conflict",
+    from: "0x1",
+    to: "0x2",
+    amount: "100"
+  });
+
+  assert.throws(
+    () => service.submit({
+      idempotencyKey: "conflict",
+      from: "0x1",
+      to: "0x3",
+      amount: "100"
+    }),
+    /idempotency key was already used with a different request/
+  );
+});
+
+test("preserves exact decimal amount without Number conversion", () => {
+  const service = new TransactionService();
+  const amount = "123456789012345678901234567890.123456789";
+
+  const tx = service.submit({
+    idempotencyKey: "precision",
+    from: "0x1",
+    to: "0x2",
+    amount
+  });
+
+  assert.equal(tx.amount, amount);
+});
+
+test("rejects malformed decimal amounts", () => {
+  const service = new TransactionService();
+
+  assert.throws(
+    () => service.submit({
+      idempotencyKey: "bad-amount",
+      from: "0x1",
+      to: "0x2",
+      amount: "1e18"
+    }),
+    /amount must be a positive decimal string/
+  );
+});
