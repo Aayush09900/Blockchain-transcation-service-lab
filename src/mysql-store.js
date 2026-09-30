@@ -7,7 +7,8 @@ import {
 } from "./validation.js";
 
 const transitions = {
-  CREATED: new Set(["SUBMITTED", "FAILED"]),
+  CREATED: new Set(["BROADCASTING", "SUBMITTED", "FAILED"]),
+  BROADCASTING: new Set(["SUBMITTED", "FAILED" ]),
   SUBMITTED: new Set(["CONFIRMED", "FAILED"]),
   CONFIRMED: new Set([]),
   FAILED: new Set([])
