@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { network } from "hardhat";
-import { EthersBlockchainAdapter } from "../../src/blockchain-adapter.js";
+import { EthersBlockchainAdapter } from "../src/blockchain-adapter.js";
 
 const { ethers } = await network.create();
 
