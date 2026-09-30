@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { execFileSync } from "node:child_process";
 
 const root = process.cwd();
 
@@ -76,8 +77,7 @@ const gitignore = exists(".gitignore")
   ? fs.readFileSync(path.join(root, ".gitignore"), "utf8")
   : "";
 
-const trackedFiles = require("node:child_process")
-  .execFileSync("git", ["ls-files"], { encoding: "utf8" })
+const trackedFiles = execFileSync("git", ["ls-files"], { encoding: "utf8" })
   .split("\n")
   .filter(Boolean);
 
