@@ -255,11 +255,11 @@ const server = http.createServer(async (request, response) => {
 
       const body = await readJson(request);
 
-      if (body.txHash !== undefined) {
+      if (Object.keys(body).length > 0) {
         const error = new Error(
-          "txHash is service-controlled and cannot be supplied to /submit"
+          "the /submit request body must be empty; blockchain submission is service-controlled"
         );
-        error.code = "EXTERNAL_TX_HASH_NOT_ALLOWED";
+        error.code = "SUBMIT_BODY_NOT_ALLOWED";
         error.statusCode = 400;
         throw error;
       }
@@ -369,15 +369,21 @@ const server = http.createServer(async (request, response) => {
         transitionTransaction
       });
 
+      const responseBody = {
+        transaction: result.transaction,
+        ...(result.blockchain ? { blockchain: result.blockchain } : {}),
+        ...(result.transaction.status === "SUBMITTED"
+          ? {
+              nextStep: `POST /v1/transactions/${transaction.id}/confirm after the transaction is mined`
+            }
+          : {})
+      };
+
       json(
         response,
         requestId,
         result.reused ? 200 : 202,
-        {
-          transaction: result.transaction,
-          ...(result.blockchain ? { blockchain: result.blockchain } : {}),
-          nextStep: `POST /v1/transactions/${transaction.id}/confirm after the transaction is mined`
-        }
+        responseBody
       );
       return;
     }
