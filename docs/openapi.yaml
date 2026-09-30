@@ -67,18 +67,24 @@ paths:
           description: Transaction not found
   /v1/transactions/{id}/submit:
     post:
-      summary: Mark a transaction as submitted
+      summary: Broadcast a transaction through the service-controlled signer
       parameters:
         - $ref: "#/components/parameters/TransactionId"
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/SubmitRequest"
       responses:
+        "202":
+          description: Broadcast accepted; transaction is SUBMITTED pending receipt confirmation
         "200":
-          description: Transaction submitted
+          description: Existing transaction state returned without rebroadcasting
+        "400":
+          description: Caller supplied a transaction hash; hashes are service-controlled
+        "503":
+          description: Blockchain broadcast outcome is unknown or the adapter is disabled
   /v1/transactions/{id}/confirm:
     post:
       summary: Confirm a submitted transaction after receipt verification
@@ -175,11 +181,8 @@ components:
           pattern: "^[0-9]+(\\.[0-9]{1,18})?$"
     SubmitRequest:
       type: object
-      required: [txHash]
-      properties:
-        txHash:
-          type: string
-          pattern: "^0x[0-9a-fA-F]{64}$"
+      additionalProperties: false
+      description: Empty request. Blockchain transaction hashes are generated and persisted by the service.
     FailRequest:
       type: object
       properties:
