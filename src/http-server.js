@@ -10,28 +10,22 @@ import {
 import { parseTransactionId } from "./path-security.js";
 import { toPublicHttpError } from "./http-errors.js";
 import { validateTransactionInput, requireNonEmptyString } from "./validation.js";
+import { loadConfig } from "./config.js";
 
-const PORT = Number.parseInt(process.env.PORT ?? "3000", 10);
-const MAX_BODY_BYTES = 32 * 1024;
-const API_TOKEN = process.env.API_TOKEN ?? "";
-const CORS_ORIGIN = process.env.CORS_ORIGIN ?? "";
-const RATE_LIMIT_MAX = Number.parseInt(
-  process.env.RATE_LIMIT_MAX ?? "60",
-  10
-);
-const RATE_LIMIT_MAX_CLIENTS = Number.parseInt(
-  process.env.RATE_LIMIT_MAX_CLIENTS ?? "10000",
-  10
-);
+const config = loadConfig();
 
 const rateLimit = createRateLimiter({
-  maxRequests: RATE_LIMIT_MAX,
-  maxClients: RATE_LIMIT_MAX_CLIENTS
+  maxRequests: config.rateLimitMax,
+  maxClients: config.rateLimitMaxClients
 });
 
 const memoryService = new TransactionService();
-const postgresStore = process.env.DATABASE_URL
-  ? new PostgresTransactionStore()
+const postgresStore = config.databaseUrl
+  ? new PostgresTransactionStore({
+      connectionString: config.databaseUrl,
+      maxPoolSize: config.dbPoolMax,
+      ssl: config.dbSsl
+    })
   : null;
 
 const persistenceMode = postgresStore ? "postgres" : "memory";
@@ -66,7 +60,7 @@ async function readJson(request) {
   for await (const chunk of request) {
     size += chunk.length;
 
-    if (size > MAX_BODY_BYTES) {
+    if (size > 32 * 1024) {
       const error = new Error("request body too large");
       error.statusCode = 413;
       throw error;
@@ -140,32 +134,38 @@ async function transitionTransaction(id, nextStatus, patch = {}) {
 }
 
 const server = http.createServer(async (request, response) => {
-  const requestId = request.headers["x-request-id"]?.toString() || randomUUID();
+  const incomingRequestId =
+    request.headers["x-request-id"]?.toString() || randomUUID();
 
-  if (requestId.length > 128) {
-    response.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+  if (incomingRequestId.length > 128) {
+    response.writeHead(400, {
+      "Content-Type": "application/json; charset=utf-8"
+    });
     response.end(JSON.stringify({ error: "invalid request id" }));
     return;
   }
 
+  const requestId = incomingRequestId;
   const origin = request.headers.origin ?? "";
 
   applySecurityHeaders(
     response,
-    CORS_ORIGIN && origin === CORS_ORIGIN ? CORS_ORIGIN : ""
+    config.corsOrigin && origin === config.corsOrigin
+      ? config.corsOrigin
+      : ""
   );
 
   response.setHeader("X-Request-ID", requestId);
 
   if (request.method === "OPTIONS") {
-    if (CORS_ORIGIN && origin !== CORS_ORIGIN) {
+    if (config.corsOrigin && origin !== config.corsOrigin) {
       json(response, requestId, 403, { error: "origin not allowed" });
       return;
     }
 
     response.writeHead(204, {
       "X-Request-ID": requestId,
-      "Access-Control-Allow-Origin": CORS_ORIGIN || origin,
+      "Access-Control-Allow-Origin": config.corsOrigin || origin,
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers":
         "Authorization, Content-Type, Idempotency-Key, X-Request-ID",
@@ -208,7 +208,7 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
-    authenticate(request, API_TOKEN);
+    authenticate(request, config.apiToken);
 
     if (request.method === "POST" && pathname === "/v1/transactions") {
       assertJsonRequest(request);
@@ -306,12 +306,12 @@ server.keepAliveTimeout = 5_000;
 server.headersTimeout = 10_000;
 server.requestTimeout = 15_000;
 
-server.listen(PORT, () => {
+server.listen(config.port, () => {
   console.log(JSON.stringify({
     event: "server_started",
-    port: PORT,
+    port: config.port,
     persistence: persistenceMode,
-    environment: process.env.NODE_ENV ?? "development"
+    environment: config.nodeEnv
   }));
 });
 
