@@ -19,6 +19,8 @@ Core data includes transaction UUID, status, amount, asset, sender/recipient, ch
 Amounts are represented as decimal strings/integer-compatible database values rather than JavaScript floating-point values.
 
 ## Lifecycle events
+
+The current implementation includes a BROADCASTING state between creation and blockchain submission.
 Durable events should describe status changes and blockchain evidence. The current outbox is the durable event delivery mechanism. A separate transaction_events table is optional and should only be introduced if query/audit requirements justify it.
 
 ## Idempotency
