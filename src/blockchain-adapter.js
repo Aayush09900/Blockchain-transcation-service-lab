@@ -522,13 +522,13 @@ function blockchainVerificationError(message) {
 
 function createRpcProvider({ rpcUrl, rpcUrls, chainId }) {
   const configuredUrls = [
+    ...(rpcUrl ? [rpcUrl] : []),
     ...(Array.isArray(rpcUrls)
       ? rpcUrls
       : String(rpcUrls ?? "")
           .split(",")
           .map((value) => value.trim())
-          .filter(Boolean)),
-    ...(rpcUrl ? [rpcUrl] : [])
+          .filter(Boolean))
   ];
 
   const urls = [...new Set(configuredUrls.filter(Boolean))];
