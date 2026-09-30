@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   amount DECIMAL(65, 18) NOT NULL,
   status ENUM('CREATED', 'BROADCASTING', 'SUBMITTED', 'CONFIRMED', 'FAILED') NOT NULL,
   tx_hash CHAR(66) NULL,
+  signed_transaction TEXT NULL,
   failure_reason VARCHAR(500) NULL,
   attempts INT UNSIGNED NOT NULL DEFAULT 0,
   created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
@@ -28,11 +29,14 @@ CREATE TABLE IF NOT EXISTS transaction_outbox (
   next_attempt_at TIMESTAMP(6) NULL,
   dead_lettered_at TIMESTAMP(6) NULL,
   published_at TIMESTAMP(6) NULL,
+  claim_token CHAR(36) NULL,
+  claimed_at TIMESTAMP(6) NULL,
   created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
   UNIQUE KEY ux_outbox_event_id (event_id),
   KEY ix_outbox_pending (published_at, dead_lettered_at, next_attempt_at, id),
   KEY ix_outbox_transaction_id (transaction_id),
+  KEY ix_outbox_claims (claimed_at, published_at, dead_lettered_at, next_attempt_at),
 
   CONSTRAINT fk_outbox_transaction
     FOREIGN KEY (transaction_id)
