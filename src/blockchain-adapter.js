@@ -372,11 +372,11 @@ export class EthersReceiptMonitor {
     ]);
 
     if (!transaction) {
-      throw blockchainVerificationError("blockchain transaction not found");
+      return { confirmed: false, notFound: true, receipt: null };
     }
 
     if (!receipt) {
-      return { confirmed: false, receipt: null };
+      return { confirmed: false, submitted: true, receipt: null };
     }
 
     if (receipt.status !== 1) {
