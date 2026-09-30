@@ -11,7 +11,7 @@ function redactCredentials(value) {
     )
     .replace(
       /\b(?:authorization|proxy-authorization)\s*[:=]\s*[^\s,;]+/gi,
-      "$&".replace(/[^:=]+$/,"REDACTED")
+      (match) => match.replace(/([:=]\s*)[^\s,;]+$/,"$1<REDACTED>")
     )
     .replace(
       /\b(?:password|passwd|pwd|secret|token|api[_-]?key|private[_-]?key)\s*[:=]\s*[^\s,;]+/gi,
