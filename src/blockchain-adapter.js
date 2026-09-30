@@ -254,6 +254,36 @@ export class EthersBlockchainAdapter {
     };
   }
 
+  async verifyConfirmedTransaction({
+    txHash,
+    confirmedBlockNumber,
+    confirmedBlockHash
+  }) {
+    validateTransactionHash(txHash);
+
+    const receipt = await this.provider.getTransactionReceipt(txHash);
+
+    if (!receipt) {
+      return { reorged: true, reason: "confirmed transaction receipt disappeared" };
+    }
+
+    if (
+      receipt.status !== 1 ||
+      receipt.blockNumber !== Number(confirmedBlockNumber) ||
+      receipt.blockHash !== confirmedBlockHash
+    ) {
+      return { reorged: true, reason: "confirmed receipt no longer matches canonical evidence" };
+    }
+
+    const canonicalBlock = await this.provider.getBlock(Number(confirmedBlockNumber));
+
+    if (!canonicalBlock || canonicalBlock.hash !== confirmedBlockHash) {
+      return { reorged: true, reason: "confirmed block is no longer canonical" };
+    }
+
+    return { reorged: false };
+  }
+
   async getTransactionReceipt(txHash) {
     validateTransactionHash(txHash);
 
@@ -465,6 +495,36 @@ export class EthersReceiptMonitor {
       receiver: getAddress(parsed.args[2]),
       amountWei: BigInt(parsed.args[3]).toString()
     };
+  }
+
+  async verifyConfirmedTransaction({
+    txHash,
+    confirmedBlockNumber,
+    confirmedBlockHash
+  }) {
+    validateTransactionHash(txHash);
+
+    const receipt = await this.provider.getTransactionReceipt(txHash);
+
+    if (!receipt) {
+      return { reorged: true, reason: "confirmed transaction receipt disappeared" };
+    }
+
+    if (
+      receipt.status !== 1 ||
+      receipt.blockNumber !== Number(confirmedBlockNumber) ||
+      receipt.blockHash !== confirmedBlockHash
+    ) {
+      return { reorged: true, reason: "confirmed receipt no longer matches canonical evidence" };
+    }
+
+    const canonicalBlock = await this.provider.getBlock(Number(confirmedBlockNumber));
+
+    if (!canonicalBlock || canonicalBlock.hash !== confirmedBlockHash) {
+      return { reorged: true, reason: "confirmed block is no longer canonical" };
+    }
+
+    return { reorged: false };
   }
 
   async getTransactionReceipt(txHash) {
