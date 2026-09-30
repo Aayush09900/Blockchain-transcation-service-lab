@@ -42,6 +42,7 @@ const mongoStore = new MongoAuditStore({
 const blockchain = config.blockchainEnabled
   ? EthersBlockchainAdapter.fromConfig({
       rpcUrl: config.chainRpcUrl,
+      rpcUrls: config.chainRpcUrls,
       privateKey: config.signerPrivateKey,
       contractAddress: config.anchorContractAddress,
       chainId: config.chainId,
