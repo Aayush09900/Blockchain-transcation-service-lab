@@ -65,6 +65,7 @@ services:
       MONGO_MAX_POOL_SIZE: 20
       MONGO_TLS: "false"
       BLOCKCHAIN_ENABLED: "false"
+      CHAIN_RPC_URLS: ${CHAIN_RPC_URLS:-}
       CHAIN_CONFIRMATIONS: ${CHAIN_CONFIRMATIONS:-1}
     depends_on:
       mysql:
@@ -125,6 +126,7 @@ services:
       MYSQL_SSL: "false"
       MYSQL_POOL_MAX: 10
       CHAIN_RPC_URL: ${CHAIN_RPC_URL:-}
+      CHAIN_RPC_URLS: ${CHAIN_RPC_URLS:-}
       CHAIN_ID: ${CHAIN_ID:-}
       CHAIN_CONFIRMATIONS: ${CHAIN_CONFIRMATIONS:-1}
       CHAIN_CONFIRM_POLL_MS: ${CHAIN_CONFIRM_POLL_MS:-3000}
