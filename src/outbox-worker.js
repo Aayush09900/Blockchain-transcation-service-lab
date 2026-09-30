@@ -41,6 +41,7 @@ let batchesProcessed = 0;
 let eventsClaimed = 0;
 let eventsPublished = 0;
 let eventsFailed = 0;
+let lastHeartbeatAt = 0;
 
 async function publishBatch() {
   if (processing) return;
