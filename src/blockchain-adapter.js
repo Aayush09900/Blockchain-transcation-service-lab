@@ -22,6 +22,7 @@ const CONTRACT_INTERFACE = new Interface(ABI);
 export class EthersBlockchainAdapter {
   constructor({
     provider,
+    providers = [provider],
     signer,
     contractAddress,
     confirmationDepth = 1
@@ -49,6 +50,7 @@ export class EthersBlockchainAdapter {
     }
 
     this.provider = provider;
+    this.rpcProviders = providers;
     this.signer = signer;
     this.confirmationDepth = normalizedConfirmationDepth;
     this.contractAddress = getAddress(contractAddress);
@@ -78,6 +80,7 @@ export class EthersBlockchainAdapter {
 
     return new EthersBlockchainAdapter({
       provider: providerConfig.provider,
+      providers: providerConfig.providers,
       signer,
       contractAddress,
       confirmationDepth
@@ -85,15 +88,32 @@ export class EthersBlockchainAdapter {
   }
 
   async healthCheck(expectedChainId) {
-    const network = await this.provider.getNetwork();
+    const results = await Promise.all(
+      this.rpcProviders.map(async (provider) => {
+        try {
+          const network = await provider.getNetwork();
+          return { network };
+        } catch (error) {
+          return { error };
+        }
+      })
+    );
 
-    if (
-      expectedChainId !== undefined &&
-      network.chainId !== BigInt(expectedChainId)
-    ) {
+    const healthy = results.filter((result) => result.network);
+    const mismatches = healthy.filter(
+      (result) =>
+        expectedChainId !== undefined &&
+        result.network.chainId !== BigInt(expectedChainId)
+    );
+
+    if (mismatches.length > 0) {
       throw new Error(
-        `chain id mismatch: expected ${expectedChainId}, got ${network.chainId}`
+        `configured RPC endpoint chain mismatch: expected ${expectedChainId}, got ${mismatches[0].network.chainId}`
       );
+    }
+
+    if (healthy.length === 0) {
+      throw new Error("all configured blockchain RPC endpoints are unavailable");
     }
 
     return true;
@@ -295,7 +315,11 @@ export class EthersBlockchainAdapter {
 }
 
 export class EthersReceiptMonitor {
-  constructor({ provider, confirmationDepth = 1 }) {
+  constructor({
+    provider,
+    providers = [provider],
+    confirmationDepth = 1
+  }) {
     if (!provider) {
       throw new Error("ethers provider is required");
     }
@@ -311,6 +335,7 @@ export class EthersReceiptMonitor {
     }
 
     this.provider = provider;
+    this.rpcProviders = providers;
     this.confirmationDepth = normalizedConfirmationDepth;
   }
 
@@ -328,20 +353,38 @@ export class EthersReceiptMonitor {
 
     return new EthersReceiptMonitor({
       provider: providerConfig.provider,
+      providers: providerConfig.providers,
       confirmationDepth
     });
   }
 
   async healthCheck(expectedChainId) {
-    const network = await this.provider.getNetwork();
+    const results = await Promise.all(
+      this.rpcProviders.map(async (provider) => {
+        try {
+          const network = await provider.getNetwork();
+          return { network };
+        } catch (error) {
+          return { error };
+        }
+      })
+    );
 
-    if (
-      expectedChainId !== undefined &&
-      network.chainId !== BigInt(expectedChainId)
-    ) {
+    const healthy = results.filter((result) => result.network);
+    const mismatches = healthy.filter(
+      (result) =>
+        expectedChainId !== undefined &&
+        result.network.chainId !== BigInt(expectedChainId)
+    );
+
+    if (mismatches.length > 0) {
       throw new Error(
-        `chain id mismatch: expected ${expectedChainId}, got ${network.chainId}`
+        `configured RPC endpoint chain mismatch: expected ${expectedChainId}, got ${mismatches[0].network.chainId}`
       );
+    }
+
+    if (healthy.length === 0) {
+      throw new Error("all configured blockchain RPC endpoints are unavailable");
     }
 
     return true;
@@ -554,6 +597,7 @@ function createRpcProvider({ rpcUrl, rpcUrls, chainId }) {
   if (providers.length === 1) {
     return {
       provider: providers[0],
+      providers,
       providerCount: 1
     };
   }
@@ -571,6 +615,7 @@ function createRpcProvider({ rpcUrl, rpcUrls, chainId }) {
 
   return {
     provider: fallback,
+    providers,
     providerCount: providers.length
   };
 }
