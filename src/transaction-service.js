@@ -10,6 +10,7 @@ export const TransactionStatus = Object.freeze({
   BROADCASTING: "BROADCASTING",
   SUBMITTED: "SUBMITTED",
   CONFIRMED: "CONFIRMED",
+  REORGED: "REORGED",
   FAILED: "FAILED"
 });
 
@@ -88,6 +89,12 @@ export class TransactionService {
   markConfirmed(id) {
     return this.transition(id, TransactionStatus.CONFIRMED, {
       failureReason: null
+    });
+  }
+
+  markReorged(id, reason = "transaction was reorged") {
+    return this.transition(id, TransactionStatus.REORGED, {
+      failureReason: requireNonEmptyString(reason, "failureReason", 500)
     });
   }
 
