@@ -270,22 +270,29 @@ const server = http.createServer(async (request, response) => {
       const transaction = await getTransaction(transactionId);
 
       if (blockchain && transaction.txHash) {
-        const receipt = await blockchain.getTransactionReceipt(transaction.txHash);
+        const verification = await blockchain.verifySubmittedTransaction({
+          transactionId,
+          sender: transaction.from,
+          receiver: transaction.to,
+          amountWei: parseEther(transaction.amount),
+          txHash: transaction.txHash
+        });
 
-        if (!receipt) {
-          const error = new Error("blockchain transaction is not confirmed yet");
-          error.code = "NOT_CONFIRMED";
-          error.statusCode = 409;
-          throw error;
-        }
+        if (!verification.confirmed) {
+          if (verification.reverted) {
+            await transitionTransaction(transactionId, "FAILED", {
+              failureReason: "blockchain transaction reverted"
+            });
+          }
 
-        if (receipt.status !== 1) {
-          await transitionTransaction(transactionId, "FAILED", {
-            failureReason: "blockchain transaction reverted"
-          });
-
-          const error = new Error("blockchain transaction reverted");
-          error.code = "BLOCKCHAIN_REVERTED";
+          const error = new Error(
+            verification.reverted
+              ? "blockchain transaction reverted"
+              : "blockchain transaction is not confirmed yet"
+          );
+          error.code = verification.reverted
+            ? "BLOCKCHAIN_REVERTED"
+            : "NOT_CONFIRMED";
           error.statusCode = 409;
           throw error;
         }
