@@ -23,6 +23,7 @@ const requiredFiles = [
   "src/blockchain-adapter.js",
   "src/outbox-worker.js",
   "src/blockchain-confirmation-worker.js",
+  "src/logging.js",
   "hardhat.config.js",
   "contracts/TransactionReceiptAnchor.sol",
   "hardhat-tests/TransactionReceiptAnchor.test.js",
