@@ -56,6 +56,7 @@ const recoveryLookbackBlocks = Math.max(
 let running = true;
 let processing = false;
 let inFlight = null;
+
 let batchesProcessed = 0;
 let recoveredCount = 0;
 let confirmedCount = 0;
@@ -69,11 +70,12 @@ async function reconcileBatch() {
 
   processing = true;
   inFlight = (async () => {
+    let broadcastingCount = 0;
+    let submittedCount = 0;
+
     try {
       const broadcasting = await mysqlStore.listBroadcasting(batchSize);
-      const submittedBefore = await mysqlStore.listSubmitted(batchSize);
-
-      batchesProcessed += 1;
+      broadcastingCount = broadcasting.length;
 
       for (const transaction of broadcasting) {
         try {
@@ -81,24 +83,10 @@ async function reconcileBatch() {
             transactionId: transaction.id,
             contractAddress: anchorContractAddress,
             lookbackBlocks: recoveryLookbackBlocks
-          console.log(JSON.stringify({
-        event: "blockchain_confirmation_batch_processed",
-        batchSize,
-        broadcasting: broadcasting.length,
-        submitted: submittedBefore.length,
-        totals: {
-          batchesProcessed,
-          recoveredCount,
-          confirmedCount,
-          failedCount,
-          pendingCount,
-          verificationErrorCount,
-          rpcErrorCount
-        }
-      }));
-      });
+          });
 
           if (!recovered) {
+            pendingCount += 1;
             continue;
           }
 
@@ -121,6 +109,7 @@ async function reconcileBatch() {
           }
         } catch (error) {
           if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
+            verificationErrorCount += 1;
             await mysqlStore.transition(transaction.id, "FAILED", {
               failureReason: "broadcast recovery verification failed"
             });
@@ -128,11 +117,7 @@ async function reconcileBatch() {
             continue;
           }
 
-          if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
-            verificationErrorCount += 1;
-          } else {
-            rpcErrorCount += 1;
-          }
+          rpcErrorCount += 1;
 
           console.error(JSON.stringify({
             event: "blockchain_broadcast_recovery_error",
@@ -143,6 +128,7 @@ async function reconcileBatch() {
       }
 
       const transactions = await mysqlStore.listSubmitted(batchSize);
+      submittedCount = transactions.length;
 
       for (const transaction of transactions) {
         try {
@@ -200,6 +186,23 @@ async function reconcileBatch() {
         }
       }
     } finally {
+      console.log(JSON.stringify({
+        event: "blockchain_confirmation_batch_processed",
+        batchSize,
+        broadcasting: broadcastingCount,
+        submitted: submittedCount,
+        totals: {
+          batchesProcessed,
+          recoveredCount,
+          confirmedCount,
+          failedCount,
+          pendingCount,
+          verificationErrorCount,
+          rpcErrorCount
+        }
+      }));
+
+      batchesProcessed += 1;
       inFlight = null;
       processing = false;
     }
@@ -268,6 +271,7 @@ console.log(JSON.stringify({
   event: "blockchain_confirmation_worker_started",
   intervalMs,
   batchSize,
+  recoveryLookbackBlocks,
   chainId: expectedChainId ?? "provider-detected"
 }));
 
