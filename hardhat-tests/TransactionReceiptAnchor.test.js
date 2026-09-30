@@ -38,6 +38,34 @@ describe("TransactionReceiptAnchor", function () {
     assert.equal(anchor.blockNumber, result.blockNumber);
   });
 
+
+  it("broadcasts an anchor without waiting for the receipt", async function () {
+    const [sender, receiver] = await ethers.getSigners();
+
+    const contract = await ethers.deployContract("TransactionReceiptAnchor");
+    await contract.waitForDeployment();
+
+    const adapter = new EthersBlockchainAdapter({
+      provider: ethers.provider,
+      signer: sender,
+      contractAddress: await contract.getAddress()
+    });
+
+    const broadcast = await adapter.broadcastAnchorTransaction({
+      transactionId: "broadcast-only",
+      sender: sender.address,
+      receiver: receiver.address,
+      amountWei: "2"
+    });
+
+    assert.match(broadcast.txHash, /^0x[0-9a-f]{64}$/i);
+    assert.equal(broadcast.chainId, "31337");
+
+    const receipt = await adapter.getTransactionReceipt(broadcast.txHash);
+    assert.equal(receipt.status, 1);
+    assert.equal(receipt.txHash, broadcast.txHash);
+  });
+
   it("rejects duplicate transaction IDs on-chain", async function () {
     const [sender, receiver] = await ethers.getSigners();
 
