@@ -15,6 +15,7 @@ const requiredFiles = [
   "Dockerfile",
   "docker-compose.yml",
   "db/mysql/001_init.sql",
+  "db/mysql/002_outbox_leases.sql",
   "src/http-server.js",
   "src/http-errors.js",
   "src/path-security.js",
