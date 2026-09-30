@@ -1,4 +1,8 @@
 import pg from "pg";
+import {
+  requireNonEmptyString,
+  validateTransactionInput
+} from "./validation.js";
 
 const { Pool } = pg;
 
@@ -20,7 +24,10 @@ export class PostgresTransactionStore {
       max: Number.parseInt(process.env.DB_POOL_MAX ?? "10", 10),
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 5_000,
-      ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: true } : undefined
+      ssl:
+        process.env.DB_SSL === "true"
+          ? { rejectUnauthorized: true }
+          : undefined
     });
   }
 
@@ -34,42 +41,64 @@ export class PostgresTransactionStore {
   }
 
   async createOrGet({ id, idempotencyKey, from, to, amount }) {
+    const input = validateTransactionInput({
+      idempotencyKey,
+      from,
+      to,
+      amount
+    });
+
     const client = await this.pool.connect();
 
     try {
       await client.query("BEGIN");
 
-      const existing = await client.query(
-        "SELECT * FROM transactions WHERE idempotency_key = $1 FOR UPDATE",
-        [idempotencyKey]
+      const inserted = await client.query(
+        `INSERT INTO transactions
+          (id, idempotency_key, sender, receiver, amount, status)
+         VALUES ($1, $2, $3, $4, $5, 'CREATED')
+         ON CONFLICT (idempotency_key) DO NOTHING
+         RETURNING *`,
+        [
+          id,
+          input.idempotencyKey,
+          input.from,
+          input.to,
+          input.amount
+        ]
       );
 
-      if (existing.rowCount > 0) {
+      if (inserted.rowCount === 0) {
+        const existing = await client.query(
+          "SELECT * FROM transactions WHERE idempotency_key = $1 FOR UPDATE",
+          [input.idempotencyKey]
+        );
+
+        if (existing.rowCount === 0) {
+          const error = new Error("transaction could not be created");
+          error.code = "PERSISTENCE_CONFLICT";
+          error.statusCode = 503;
+          throw error;
+        }
+
         const row = existing.rows[0];
 
         if (
-          row.sender !== from ||
-          row.receiver !== to ||
-          row.amount.toString() !== amount
+          row.sender !== input.from ||
+          row.receiver !== input.to ||
+          row.amount.toString() !== input.amount
         ) {
           const error = new Error(
             "idempotency key was already used with a different request"
           );
           error.code = "IDEMPOTENCY_CONFLICT";
+          error.statusCode = 409;
           throw error;
         }
 
         await client.query("COMMIT");
         return mapRow(row);
       }
-
-      const inserted = await client.query(
-        `INSERT INTO transactions
-          (id, idempotency_key, sender, receiver, amount, status)
-         VALUES ($1, $2, $3, $4, $5, 'CREATED')
-         RETURNING *`,
-        [id, idempotencyKey, from, to, amount]
-      );
 
       await client.query(
         `INSERT INTO transaction_events
@@ -81,7 +110,11 @@ export class PostgresTransactionStore {
       await client.query("COMMIT");
       return mapRow(inserted.rows[0]);
     } catch (error) {
-      await client.query("ROLLBACK");
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Preserve the original error.
+      }
       throw error;
     } finally {
       client.release();
@@ -97,6 +130,7 @@ export class PostgresTransactionStore {
     if (result.rowCount === 0) {
       const error = new Error("transaction not found");
       error.code = "NOT_FOUND";
+      error.statusCode = 404;
       throw error;
     }
 
@@ -117,12 +151,25 @@ export class PostgresTransactionStore {
       if (currentResult.rowCount === 0) {
         const error = new Error("transaction not found");
         error.code = "NOT_FOUND";
+        error.statusCode = 404;
         throw error;
       }
 
       const current = currentResult.rows[0];
 
       if (current.status === nextStatus) {
+        if (
+          nextStatus === "SUBMITTED" &&
+          patch.txHash &&
+          current.tx_hash &&
+          current.tx_hash !== patch.txHash
+        ) {
+          const error = new Error("transaction hash mismatch");
+          error.code = "TX_HASH_MISMATCH";
+          error.statusCode = 409;
+          throw error;
+        }
+
         await client.query("COMMIT");
         return mapRow(current);
       }
@@ -132,25 +179,39 @@ export class PostgresTransactionStore {
           `invalid transition: ${current.status} -> ${nextStatus}`
         );
         error.code = "INVALID_TRANSITION";
+        error.statusCode = 409;
         throw error;
       }
+
+      const txHash =
+        patch.txHash === undefined
+          ? current.tx_hash
+          : requireNonEmptyString(patch.txHash, "txHash", 256);
+
+      const failureReason =
+        nextStatus === "FAILED"
+          ? requireNonEmptyString(
+              patch.failureReason ?? "transaction failed",
+              "failureReason",
+              500
+            )
+          : null;
+
+      const attempts =
+        nextStatus === "SUBMITTED"
+          ? current.attempts + 1
+          : current.attempts;
 
       const updated = await client.query(
         `UPDATE transactions
          SET status = $2,
-             tx_hash = COALESCE($3, tx_hash),
+             tx_hash = $3,
              failure_reason = $4,
-             attempts = COALESCE($5, attempts),
+             attempts = $5,
              updated_at = NOW()
          WHERE id = $1
          RETURNING *`,
-        [
-          id,
-          nextStatus,
-          patch.txHash ?? null,
-          patch.failureReason ?? null,
-          patch.attempts ?? null
-        ]
+        [id, nextStatus, txHash, failureReason, attempts]
       );
 
       await client.query(
@@ -162,14 +223,21 @@ export class PostgresTransactionStore {
           current.status,
           nextStatus,
           `TRANSACTION_${nextStatus}`,
-          JSON.stringify({ hasTxHash: Boolean(patch.txHash) })
+          JSON.stringify({
+            hasTxHash: Boolean(txHash),
+            attempt: attempts
+          })
         ]
       );
 
       await client.query("COMMIT");
       return mapRow(updated.rows[0]);
     } catch (error) {
-      await client.query("ROLLBACK");
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Preserve the original error.
+      }
       throw error;
     } finally {
       client.release();
