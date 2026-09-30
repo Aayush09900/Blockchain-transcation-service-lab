@@ -2,7 +2,8 @@ import mysql from "mysql2/promise";
 import { randomUUID } from "node:crypto";
 import {
   requireNonEmptyString,
-  validateTransactionInput
+  validateTransactionInput,
+  validateTransactionHash
 } from "./validation.js";
 
 const transitions = {
@@ -210,7 +211,7 @@ export class MySqlTransactionStore {
       const txHash =
         patch.txHash === undefined
           ? current.tx_hash
-          : requireNonEmptyString(patch.txHash, "txHash", 128);
+          : validateTransactionHash(patch.txHash);
 
       const failureReason =
         nextStatus === "FAILED"
