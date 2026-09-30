@@ -34,7 +34,8 @@ const mysqlStore = new MySqlTransactionStore({
 const mongoStore = new MongoAuditStore({
   url: config.mongoUrl,
   databaseName: config.mongoDatabase,
-  maxPoolSize: config.mongoMaxPoolSize
+  maxPoolSize: config.mongoMaxPoolSize,
+  tls: config.mongoTls
 });
 
 const blockchain = config.blockchainEnabled
@@ -107,8 +108,21 @@ async function readJson(request) {
 }
 
 async function createTransaction(body, request) {
-  const idempotencyKey =
-    body.idempotencyKey ?? request.headers["idempotency-key"];
+  const headerIdempotencyKey = request.headers["idempotency-key"];
+  const bodyIdempotencyKey = body.idempotencyKey;
+
+  if (
+    headerIdempotencyKey !== undefined &&
+    bodyIdempotencyKey !== undefined &&
+    headerIdempotencyKey !== bodyIdempotencyKey
+  ) {
+    const error = new Error("idempotency key mismatch between header and body");
+    error.code = "IDEMPOTENCY_KEY_MISMATCH";
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const idempotencyKey = bodyIdempotencyKey ?? headerIdempotencyKey;
 
   const input = validateTransactionInput({
     idempotencyKey,
@@ -135,7 +149,10 @@ const server = http.createServer(async (request, response) => {
   const incomingRequestId =
     request.headers["x-request-id"]?.toString() || randomUUID();
 
-  if (incomingRequestId.length > 128) {
+  if (
+    incomingRequestId.length > 128 ||
+    /[\x00-\x1F\x7F]/.test(incomingRequestId)
+  ) {
     response.writeHead(400, {
       "Content-Type": "application/json; charset=utf-8"
     });
