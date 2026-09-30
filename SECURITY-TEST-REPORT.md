@@ -51,6 +51,7 @@ The repository was re-checked across:
 | SEC-26 | Submission endpoint trusted a caller-supplied transaction hash | High | Submission now uses the service-controlled blockchain adapter/signer; arbitrary txHash input is rejected |
 | SEC-27 | Broadcast/RPC or post-broadcast persistence ambiguity could be converted into FAILED | High | Transaction remains BROADCASTING until reconciliation recovers and verifies the on-chain anchor |
 | SEC-28 | Concurrent submit/claim errors could be reported as blockchain broadcast ambiguity | Medium | Broadcast-ambiguity wrapping is now limited to actual broadcast and post-broadcast persistence failures; initial BROADCASTING claim errors propagate unchanged |
+| SEC-29 | Single-RPC dependency and concurrent signer calls could create availability or nonce-collision risk | High | Added multi-RPC FallbackProvider support and process-local NonceManager serialization; distributed nonce coordination remains a deployment requirement |
 
 ## Current architecture
 
@@ -86,8 +87,7 @@ The project is a production-oriented engineering lab, not a live custody platfor
 Remaining controls for real-money usage:
 
 - durable execution queue
-- RPC failover
-- nonce management
+- cross-instance nonce coordination
 - fee policy
 - chain allowlist
 - reorg handling
@@ -99,7 +99,7 @@ Remaining controls for real-money usage:
 - disaster recovery
 - external security review
 - durable broadcast/reconciliation for transactions that remain unresolved beyond the configured event lookback window
-- multi-provider RPC failover and nonce coordination
+- cross-instance nonce coordination for multiple signer processes
 
 
 ## Final CI review notes
