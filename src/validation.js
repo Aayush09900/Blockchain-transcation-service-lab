@@ -98,6 +98,35 @@ export function validateTransactionHash(value) {
   return hash;
 }
 
+
+export function validateBlockHash(value) {
+  const hash = requireNonEmptyString(value, "confirmedBlockHash", 66);
+
+  if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) {
+    const error = new Error(
+      "confirmedBlockHash must be a valid 32-byte block hash"
+    );
+    error.code = "VALIDATION_ERROR";
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return hash;
+}
+
+export function validateBlockNumber(value) {
+  const numeric = Number(value);
+
+  if (!Number.isSafeInteger(numeric) || numeric < 0) {
+    const error = new Error("confirmedBlockNumber must be a non-negative safe integer");
+    error.code = "VALIDATION_ERROR";
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return numeric;
+}
+
 export function validateTransactionInput({
   idempotencyKey,
   from,
