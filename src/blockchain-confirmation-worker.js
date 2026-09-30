@@ -43,6 +43,13 @@ const batchSize = Math.max(
     Number.parseInt(process.env.CHAIN_CONFIRM_BATCH_SIZE ?? "50", 10)
   )
 );
+const recoveryLookbackBlocks = Math.max(
+  1,
+  Math.min(
+    2_000_000,
+    Number.parseInt(process.env.CHAIN_RECOVERY_LOOKBACK_BLOCKS ?? "20000", 10)
+  )
+);
 
 let running = true;
 let processing = false;
@@ -53,6 +60,50 @@ async function reconcileBatch() {
   processing = true;
 
   try {
+    const broadcasting = await mysqlStore.listBroadcasting(batchSize);
+
+    for (const transaction of broadcasting) {
+      try {
+        const recovered = await chain.findAnchorTransaction({
+          transactionId: transaction.id,
+          contractAddress: anchorContractAddress,
+          lookbackBlocks: recoveryLookbackBlocks
+        });
+
+        if (!recovered) {
+          continue;
+        }
+
+        const verification = await chain.verifySubmittedTransaction({
+          transactionId: transaction.id,
+          sender: transaction.from,
+          receiver: transaction.to,
+          amountWei: amountToWei(transaction.amount),
+          txHash: recovered.txHash,
+          anchorContractAddress
+        });
+
+        if (verification.confirmed) {
+          await mysqlStore.transition(transaction.id, "SUBMITTED", {
+            txHash: recovered.txHash
+          });
+        }
+      } catch (error) {
+        if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
+          await mysqlStore.transition(transaction.id, "FAILED", {
+            failureReason: "broadcast recovery verification failed"
+          });
+          continue;
+        }
+
+        console.error(JSON.stringify({
+          event: "blockchain_broadcast_recovery_error",
+          transactionId: transaction.id,
+          message: sanitizeError(error)
+        }));
+      }
+    }
+
     const transactions = await mysqlStore.listSubmitted(batchSize);
 
     for (const transaction of transactions) {
