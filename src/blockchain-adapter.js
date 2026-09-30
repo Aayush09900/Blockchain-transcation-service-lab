@@ -237,7 +237,8 @@ export class EthersBlockchainAdapter {
         normalizedTo !== normalizedReceiver ||
         transaction.from === null ||
         getAddress(transaction.from) !== normalizedSender ||
-        BigInt(transaction.value) !== BigInt(amountWei)
+        BigInt(transaction.value) !== BigInt(amountWei) ||
+        transaction.data !== "0x"
       ) {
         throw blockchainVerificationError("transfer does not match transaction");
       }
@@ -423,7 +424,8 @@ export class EthersReceiptMonitor {
       normalizedTo !== normalizedReceiver ||
       transaction.from === null ||
       getAddress(transaction.from) !== normalizedSender ||
-      BigInt(transaction.value) !== BigInt(amountWei)
+      BigInt(transaction.value) !== BigInt(amountWei) ||
+      transaction.data !== "0x"
     ) {
       throw blockchainVerificationError("transfer does not match transaction");
     }
