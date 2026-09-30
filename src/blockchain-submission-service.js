@@ -50,18 +50,6 @@ export async function submitViaBlockchain({
     });
 
     validateTransactionHash(broadcastResult?.txHash);
-
-    const submitted = await transitionTransaction(
-      broadcasting.id,
-      "SUBMITTED",
-      { txHash: broadcastResult.txHash }
-    );
-
-    return {
-      transaction: submitted,
-      blockchain: broadcastResult,
-      reused: false
-    };
   } catch (cause) {
     // At this point the signer/RPC may have accepted the transaction even if
     // the request timed out or persistence failed. Never convert that
@@ -74,4 +62,16 @@ export async function submitViaBlockchain({
     error.cause = cause;
     throw error;
   }
+
+  const submitted = await transitionTransaction(
+    broadcasting.id,
+    "SUBMITTED",
+    { txHash: broadcastResult.txHash }
+  );
+
+  return {
+    transaction: submitted,
+    blockchain: broadcastResult,
+    reused: false
+  };
 }
