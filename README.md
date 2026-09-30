@@ -309,6 +309,8 @@ The application uses layered controls:
 - MySQL outbox
 - MongoDB majority writes
 - ethers.js chain ID validation
+- Multi-RPC failover through ethers.js FallbackProvider
+- Process-local nonce serialization through ethers.js NonceManager
 - Production secret validation
 - Security headers and CORS allowlisting
 - CI dependency audit
@@ -322,8 +324,8 @@ Infrastructure firewall rules, TLS certificates, private subnets, managed secret
 The repository is now structured as a production-oriented transaction service, but production custody requires additional operational controls:
 
 - durable job queue and workers
-- RPC failover
-- nonce management
+- RPC failover across independently configured RPC endpoints
+- nonce management within a single signer process
 - fee policy
 - chain allowlisting
 - receipt/confirmation depth
