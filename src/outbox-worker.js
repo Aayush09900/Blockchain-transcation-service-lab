@@ -53,11 +53,12 @@ async function publishBatch() {
         const transaction = await mysqlStore.get(event.transaction_id);
         await mongoStore.upsertSnapshot(transaction);
 
-        await mysqlStore.markOutboxPublished(event.id);
+        await mysqlStore.markOutboxPublished(event.id, event.claim_token);
       } catch (error) {
         await mysqlStore.markOutboxFailed(
           event.id,
-          sanitizeError(error)
+          sanitizeError(error),
+          event.claim_token
         );
       }
     }
