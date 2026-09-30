@@ -35,6 +35,27 @@ export function toPublicHttpError(error) {
     return { statusCode: 400, message: error.message };
   }
 
+  if (error?.code === "BLOCKCHAIN_BROADCAST_UNCERTAIN") {
+    return {
+      statusCode: 202,
+      message: "blockchain broadcast outcome is uncertain; reconciliation is in progress"
+    };
+  }
+
+  if (error?.code === "BLOCKCHAIN_SENDER_MISMATCH") {
+    return {
+      statusCode: 409,
+      message: "transaction sender does not match the configured blockchain signer"
+    };
+  }
+
+  if (error?.code === "BLOCKCHAIN_BROADCAST_HASH_MISMATCH") {
+    return {
+      statusCode: 502,
+      message: "blockchain node returned an unexpected transaction hash"
+    };
+  }
+
   if (error?.code === "BLOCKCHAIN_DISABLED") {
     return { statusCode: 503, message: "blockchain adapter disabled" };
   }
