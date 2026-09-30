@@ -19,6 +19,25 @@ jobs:
     name: Node.js tests
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: blockchain_transactions
+          POSTGRES_USER: transaction_service
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U transaction_service -d blockchain_transactions"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      RUN_INTEGRATION_TESTS: "true"
+      DATABASE_URL: postgresql://transaction_service:postgres@localhost:5432/blockchain_transactions
+
     steps:
       - name: Checkout
         uses: actions/checkout@v5
