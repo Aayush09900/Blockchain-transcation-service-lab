@@ -43,10 +43,20 @@ export function validateAmount(value) {
     throw error;
   }
 
-  return amount;
+  const [whole, fraction = ""] = amount.split(".");
+  const normalizedFraction = fraction.replace(/0+$/, "");
+
+  return normalizedFraction
+    ? `${whole}.${normalizedFraction}`
+    : whole;
 }
 
-export function validateTransactionInput({ idempotencyKey, from, to, amount }) {
+export function validateTransactionInput({
+  idempotencyKey,
+  from,
+  to,
+  amount
+}) {
   return {
     idempotencyKey: requireNonEmptyString(
       idempotencyKey,
@@ -58,3 +68,5 @@ export function validateTransactionInput({ idempotencyKey, from, to, amount }) {
     amount: validateAmount(amount)
   };
 }
+
+export { MAX_IDEMPOTENCY_KEY_LENGTH, MAX_ADDRESS_LENGTH, MAX_AMOUNT_LENGTH };
