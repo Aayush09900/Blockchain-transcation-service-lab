@@ -99,22 +99,6 @@ export function loadConfig(env = process.env) {
   }
 
   if (blockchainEnabled) {
-    validateFeePolicy({
-      gasLimit: chainGasLimit,
-      maxFeePerGas: chainMaxFeePerGas,
-      maxPriorityFeePerGas: chainMaxPriorityFeePerGas
-    });
-
-    if (production && (
-      chainGasLimit === null ||
-      chainMaxFeePerGas === null ||
-      chainMaxPriorityFeePerGas === null
-    )) {
-      throw configError(
-        "CHAIN_GAS_LIMIT, CHAIN_MAX_FEE_GWEI, and CHAIN_MAX_PRIORITY_FEE_GWEI are required when blockchain is enabled in production"
-      );
-    }
-
     if (
       chainRpcUrls.length === 0 ||
       !anchorContractAddress ||
@@ -158,6 +142,22 @@ export function loadConfig(env = process.env) {
 
     if (!/^0x[0-9a-fA-F]{64}$/.test(signerPrivateKey)) {
       throw configError("CHAIN_SIGNER_PRIVATE_KEY must be a 32-byte hex private key");
+    }
+
+    validateFeePolicy({
+      gasLimit: chainGasLimit,
+      maxFeePerGas: chainMaxFeePerGas,
+      maxPriorityFeePerGas: chainMaxPriorityFeePerGas
+    });
+
+    if (production && (
+      chainGasLimit === null ||
+      chainMaxFeePerGas === null ||
+      chainMaxPriorityFeePerGas === null
+    )) {
+      throw configError(
+        "CHAIN_GAS_LIMIT, CHAIN_MAX_FEE_GWEI, and CHAIN_MAX_PRIORITY_FEE_GWEI are required when blockchain is enabled in production"
+      );
     }
   }
 
