@@ -1,8 +1,9 @@
 import { defineConfig } from "hardhat/config";
 import hardhatEthers from "@nomicfoundation/hardhat-ethers";
+import hardhatMocha from "@nomicfoundation/hardhat-mocha";
 
 export default defineConfig({
-  plugins: [hardhatEthers],
+  plugins: [hardhatEthers, hardhatMocha],
 
   paths: {
     tests: "./hardhat-tests"
@@ -32,6 +33,9 @@ export default defineConfig({
   },
 
   test: {
+    mocha: {
+      timeout: 30_000
+    },
     solidity: {
       profiles: {
         default: {
