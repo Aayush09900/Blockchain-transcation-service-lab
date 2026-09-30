@@ -38,6 +38,20 @@ test("returns the same transaction for duplicate idempotency keys", () => {
   assert.equal(duplicate.id, first.id);
 });
 
+test("moves CREATED to BROADCASTING before blockchain submission", () => {
+  const service = new TransactionService();
+  const tx = service.submit({
+    idempotencyKey: "broadcasting",
+    from: "0x0000000000000000000000000000000000000001",
+    to: "0x0000000000000000000000000000000000000002",
+    amount: "0.001"
+  });
+
+  const broadcasting = service.markBroadcasting(tx.id);
+
+  assert.equal(broadcasting.status, TransactionStatus.BROADCASTING);
+});
+
 test("moves CREATED to SUBMITTED with tx hash", () => {
   const service = new TransactionService();
   const tx = service.submit({
@@ -154,6 +168,21 @@ test("preserves exact decimal amount without Number conversion", () => {
   });
 
   assert.equal(tx.amount, amount);
+});
+
+test("rejects malformed blockchain transaction hashes", () => {
+  const service = new TransactionService();
+  const tx = service.submit({
+    idempotencyKey: "hash-validation",
+    from: "0x0000000000000000000000000000000000000001",
+    to: "0x0000000000000000000000000000000000000002",
+    amount: "0.001"
+  });
+
+  assert.throws(
+    () => service.markSubmitted(tx.id, "0xhash"),
+    /valid 32-byte transaction hash/
+  );
 });
 
 test("rejects malformed decimal amounts", () => {
