@@ -4,6 +4,10 @@ import hardhatEthers from "@nomicfoundation/hardhat-ethers";
 export default defineConfig({
   plugins: [hardhatEthers],
 
+  paths: {
+    tests: "./hardhat-tests"
+  },
+
   solidity: {
     profiles: {
       default: {
