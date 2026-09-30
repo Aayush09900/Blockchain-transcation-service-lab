@@ -104,8 +104,8 @@ describe("TransactionReceiptAnchor", function () {
     const contract = await ethers.deployContract("TransactionReceiptAnchor");
     await contract.waitForDeployment();
 
-    const monitor = EthersReceiptMonitor.fromConfig({
-      rpcUrl: "http://127.0.0.1:8545"
+    const monitor = new EthersReceiptMonitor({
+      provider: ethers.provider
     });
 
     const adapter = new EthersBlockchainAdapter({
