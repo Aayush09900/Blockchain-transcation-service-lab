@@ -39,7 +39,7 @@ test("production configuration requires authentication and both databases", () =
       loadConfig({
         NODE_ENV: "production",
         PORT: "3000",
-        API_TOKEN: "long-test-token",
+        API_TOKEN: "abcdefghijklmnopqrstuvwxyz1234567890ABCD",
         MYSQL_URL: "",
         MONGO_URL: "mongodb://example",
         BLOCKCHAIN_ENABLED: "false"
@@ -52,7 +52,7 @@ test("production configuration requires authentication and both databases", () =
       loadConfig({
         NODE_ENV: "production",
         PORT: "3000",
-        API_TOKEN: "long-test-token",
+        API_TOKEN: "abcdefghijklmnopqrstuvwxyz1234567890ABCD",
         MYSQL_URL: "mysql://example",
         MONGO_URL: "",
         BLOCKCHAIN_ENABLED: "false"
@@ -65,7 +65,7 @@ test("production MySQL TLS defaults on unless explicitly disabled", () => {
   const config = loadConfig({
     NODE_ENV: "production",
     PORT: "3000",
-    API_TOKEN: "long-test-token",
+    API_TOKEN: "abcdefghijklmnopqrstuvwxyz1234567890ABCD",
     MYSQL_URL: "mysql://example",
     MONGO_URL: "mongodb://example",
     BLOCKCHAIN_ENABLED: "false"
@@ -100,6 +100,6 @@ test("blockchain configuration is mandatory when enabled", () => {
         MONGO_URL: "",
         BLOCKCHAIN_ENABLED: "true"
       }),
-    /CHAIN_RPC_URL, ANCHOR_CONTRACT_ADDRESS, and CHAIN_SIGNER_PRIVATE_KEY/
+    /CHAIN_RPC_URL, CHAIN_ID, ANCHOR_CONTRACT_ADDRESS, and CHAIN_SIGNER_PRIVATE_KEY/
   );
 });
