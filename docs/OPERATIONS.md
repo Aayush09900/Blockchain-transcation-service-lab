@@ -106,3 +106,10 @@ The MySQL outbox uses a lease (`claimed_by` / `claimed_until`) with `FOR UPDATE 
 The worker defaults to a 50-event batch and a 60-second lease. Configure `OUTBOX_BATCH_SIZE` and `OUTBOX_LEASE_MS` for the expected event-processing latency; the application enforces a 10-second minimum and 15-minute maximum lease.
 
 For databases created before the lease columns existed, apply `db/mysql/002_outbox_leases.sql` during the deployment migration step before starting multiple outbox workers.
+
+
+### Blockchain confirmation depth
+
+When blockchain confirmation is enabled, `CHAIN_CONFIRMATIONS` controls how many blocks must include the mined transaction before the service can move it to `CONFIRMED`.
+
+The default is 1. Production deployments should select a confirmation depth appropriate for the target chain and risk model. This setting reduces the chance of treating a transaction as final immediately after its first block, but it does not by itself implement reorg handling.
