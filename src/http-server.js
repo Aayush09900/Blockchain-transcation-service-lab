@@ -1,5 +1,7 @@
 import http from "node:http";
+import { randomUUID } from "node:crypto";
 import { TransactionService } from "./transaction-service.js";
+import { PostgresTransactionStore } from "./postgres-store.js";
 import {
   applySecurityHeaders,
   authenticate,
@@ -14,7 +16,12 @@ const rateLimit = createRateLimiter({
   maxRequests: Number.parseInt(process.env.RATE_LIMIT_MAX ?? "60", 10)
 });
 
-const service = new TransactionService();
+const memoryService = new TransactionService();
+const postgresStore = process.env.DATABASE_URL
+  ? new PostgresTransactionStore()
+  : null;
+
+const persistenceMode = postgresStore ? "postgres" : "memory";
 
 function json(response, statusCode, body, extraHeaders = {}) {
   response.writeHead(statusCode, {
@@ -51,6 +58,48 @@ async function readJson(request) {
   }
 }
 
+async function createTransaction(body, request) {
+  const idempotencyKey =
+    body.idempotencyKey ?? request.headers["idempotency-key"];
+
+  if (!postgresStore) {
+    return memoryService.submit({
+      idempotencyKey,
+      from: body.from,
+      to: body.to,
+      amount: body.amount
+    });
+  }
+
+  return postgresStore.createOrGet({
+    id: randomUUID(),
+    idempotencyKey,
+    from: body.from,
+    to: body.to,
+    amount: String(body.amount ?? "")
+  });
+}
+
+async function getTransaction(id) {
+  return postgresStore ? postgresStore.get(id) : memoryService.get(id);
+}
+
+async function transitionTransaction(id, nextStatus, patch = {}) {
+  if (postgresStore) {
+    return postgresStore.transition(id, nextStatus, patch);
+  }
+
+  if (nextStatus === "SUBMITTED") {
+    return memoryService.markSubmitted(id, patch.txHash);
+  }
+
+  if (nextStatus === "CONFIRMED") {
+    return memoryService.markConfirmed(id);
+  }
+
+  return memoryService.markFailed(id, patch.failureReason);
+}
+
 const server = http.createServer(async (request, response) => {
   const origin = request.headers.origin ?? "";
 
@@ -78,12 +127,26 @@ const server = http.createServer(async (request, response) => {
 
   try {
     if (request.method === "GET" && request.url === "/health") {
-      json(response, 200, { status: "ok" });
+      json(response, 200, {
+        status: "ok",
+        persistence: persistenceMode
+      });
       return;
     }
 
     if (request.method === "GET" && request.url === "/ready") {
-      json(response, 200, { status: "ready" });
+      if (postgresStore) {
+        const healthy = await postgresStore.healthCheck();
+        if (!healthy) {
+          json(response, 503, { status: "not ready" });
+          return;
+        }
+      }
+
+      json(response, 200, {
+        status: "ready",
+        persistence: persistenceMode
+      });
       return;
     }
 
@@ -91,30 +154,73 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "POST" && request.url === "/v1/transactions") {
       const body = await readJson(request);
-      const idempotencyKey =
-        body.idempotencyKey ?? request.headers["idempotency-key"];
-
-      const transaction = service.submit({
-        idempotencyKey,
-        from: body.from,
-        to: body.to,
-        amount: body.amount
-      });
+      const transaction = await createTransaction(body, request);
 
       json(response, 201, transaction);
+      return;
+    }
+
+    const submitMatch = request.url?.match(
+      /^\/v1\/transactions\/([^/]+)\/submit$/
+    );
+
+    if (request.method === "POST" && submitMatch) {
+      const body = await readJson(request);
+      const transaction = await transitionTransaction(
+        decodeURIComponent(submitMatch[1]),
+        "SUBMITTED",
+        { txHash: body.txHash }
+      );
+
+      json(response, 200, transaction);
+      return;
+    }
+
+    const confirmMatch = request.url?.match(
+      /^\/v1\/transactions\/([^/]+)\/confirm$/
+    );
+
+    if (request.method === "POST" && confirmMatch) {
+      const transaction = await transitionTransaction(
+        decodeURIComponent(confirmMatch[1]),
+        "CONFIRMED"
+      );
+
+      json(response, 200, transaction);
+      return;
+    }
+
+    const failMatch = request.url?.match(
+      /^\/v1\/transactions\/([^/]+)\/fail$/
+    );
+
+    if (request.method === "POST" && failMatch) {
+      const body = await readJson(request);
+      const transaction = await transitionTransaction(
+        decodeURIComponent(failMatch[1]),
+        "FAILED",
+        { failureReason: body.reason ?? "transaction failed" }
+      );
+
+      json(response, 200, transaction);
       return;
     }
 
     const match = request.url?.match(/^\/v1\/transactions\/([^/]+)$/);
 
     if (request.method === "GET" && match) {
-      json(response, 200, service.get(decodeURIComponent(match[1])));
+      json(response, 200, await getTransaction(decodeURIComponent(match[1])));
       return;
     }
 
     json(response, 404, { error: "not found" });
   } catch (error) {
-    const statusCode = error.statusCode ?? 400;
+    const statusCode =
+      error.code === "NOT_FOUND" ? 404 :
+      error.code === "IDEMPOTENCY_CONFLICT" ? 409 :
+      error.code === "INVALID_TRANSITION" ? 409 :
+      error.statusCode ?? 400;
+
     const message = statusCode >= 500 ? "internal server error" : error.message;
 
     json(response, statusCode, { error: message });
@@ -129,16 +235,24 @@ server.listen(PORT, () => {
   console.log(JSON.stringify({
     event: "server_started",
     port: PORT,
+    persistence: persistenceMode,
     environment: process.env.NODE_ENV ?? "development"
   }));
 });
 
-process.on("SIGTERM", () => {
-  server.close(() => process.exit(0));
-});
+async function shutdown(signal) {
+  console.log(JSON.stringify({ event: "shutdown_started", signal }));
 
-process.on("SIGINT", () => {
-  server.close(() => process.exit(0));
-});
+  server.close(async () => {
+    if (postgresStore) {
+      await postgresStore.close();
+    }
+
+    process.exit(0);
+  });
+}
+
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
 
 export { server };
