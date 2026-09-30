@@ -21,16 +21,30 @@ contract TransactionReceiptAnchor {
         uint256 timestamp
     );
 
+    address public immutable anchorer;
+
     error AlreadyAnchored(bytes32 transactionId);
     error InvalidAddress();
     error InvalidAmount();
+    error Unauthorized();
+
+    constructor() {
+        anchorer = msg.sender;
+    }
+
+    modifier onlyAnchorer() {
+        if (msg.sender != anchorer) {
+            revert Unauthorized();
+        }
+        _;
+    }
 
     function anchor(
         bytes32 transactionId,
         address sender,
         address receiver,
         uint256 amount
-    ) external {
+    ) external onlyAnchorer {
         if (anchors[transactionId].timestamp != 0) {
             revert AlreadyAnchored(transactionId);
         }
