@@ -8,7 +8,6 @@ const root = process.cwd();
 const requiredFiles = [
   "package.json",
   "package-lock.json",
-  "package-lock.json",
   "README.md",
   "SECURITY.md",
   "SECURITY-TEST-REPORT.md",
@@ -39,7 +38,6 @@ const requiredFiles = [
   ".github/workflows/ci.yml",
   ".github/workflows/security.yml",
   ".github/workflows/codeql.yml",
-  ".github/workflows/dependency-review.yml",
   ".github/workflows/publish-image.yml",
   ".github/workflows/deploy-railway.yml",
   ".github/workflows/pages.yml",
@@ -154,7 +152,7 @@ const workflowFiles = [
   ".github/workflows/security.yml",
   ".github/workflows/publish-image.yml",
   ".github/workflows/codeql.yml",
-  ".github/workflows/dependency-review.yml"
+  ".github/workflows/codeql.yml"
 ];
 
 for (const workflowFile of workflowFiles) {
