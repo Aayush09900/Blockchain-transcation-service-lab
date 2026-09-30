@@ -127,10 +127,6 @@ async function transitionTransaction(id, nextStatus, patch = {}) {
   return mysqlStore.transition(id, nextStatus, patch);
 }
 
-async function auditSnapshot(transaction) {
-  await mongoStore.upsertSnapshot(transaction);
-}
-
 const server = http.createServer(async (request, response) => {
   const incomingRequestId =
     request.headers["x-request-id"]?.toString() || randomUUID();
@@ -203,7 +199,6 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "GET" && pathname === "/ready") {
       await mysqlStore.healthCheck();
-      await mongoStore.healthCheck();
 
       if (blockchain) {
         await blockchain.healthCheck(config.chainId);
@@ -222,8 +217,6 @@ const server = http.createServer(async (request, response) => {
 
       const body = await readJson(request);
       const transaction = await createTransaction(body, request);
-
-      await auditSnapshot(transaction);
 
       json(response, requestId, 201, transaction);
       return;
@@ -245,8 +238,6 @@ const server = http.createServer(async (request, response) => {
         }
       );
 
-      await auditSnapshot(transaction);
-
       json(response, requestId, 200, transaction);
       return;
     }
@@ -260,8 +251,6 @@ const server = http.createServer(async (request, response) => {
         parseTransactionId(confirmMatch[1]),
         "CONFIRMED"
       );
-
-      await auditSnapshot(transaction);
 
       json(response, requestId, 200, transaction);
       return;
@@ -284,8 +273,6 @@ const server = http.createServer(async (request, response) => {
             : "transaction failed"
         }
       );
-
-      await auditSnapshot(transaction);
 
       json(response, requestId, 200, transaction);
       return;
@@ -377,7 +364,6 @@ server.headersTimeout = 10_000;
 server.requestTimeout = 15_000;
 
 async function start() {
-  await mongoStore.connect();
   await mysqlStore.healthCheck();
 
   if (blockchain) {
