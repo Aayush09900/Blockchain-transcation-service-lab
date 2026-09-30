@@ -38,7 +38,15 @@ test(
     const store = new MySqlTransactionStore({
       url: mysqlUrl,
       maxPoolSize: 4,
-      ssl: false
+      ssl: false,
+      workerId: "worker-a"
+    });
+
+    const competingStore = new MySqlTransactionStore({
+      url: mysqlUrl,
+      maxPoolSize: 4,
+      ssl: false,
+      workerId: "worker-b"
     });
 
     const id = randomUUID();
@@ -88,6 +96,12 @@ test(
       const events = await store.claimOutboxBatch(50);
       assert.equal(events.length >= 2, true);
 
+      const competingEvents = await competingStore.claimOutboxBatch(50);
+      assert.equal(
+        competingEvents.some((event) => events.some((claimed) => claimed.id === event.id)),
+        false
+      );
+
       const confirmed = await store.transition(id, "CONFIRMED");
 
       assert.equal(confirmed.status, "CONFIRMED");
@@ -101,7 +115,10 @@ test(
         /invalid transition/
       );
     } finally {
-      await store.close();
+      await Promise.allSettled([
+        store.close(),
+        competingStore.close()
+      ]);
     }
   }
 );
