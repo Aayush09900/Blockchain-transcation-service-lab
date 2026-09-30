@@ -510,7 +510,7 @@ function blockchainVerificationError(message) {
 }
 
 
-function createRpcProvider({ rpcUrl, rpcUrls, chainId }) {
+export function createRpcProvider({ rpcUrl, rpcUrls, chainId }) {
   const urls = [rpcUrls, rpcUrl]
     .filter((value) => value !== undefined && value !== null)
     .flatMap((value) =>
