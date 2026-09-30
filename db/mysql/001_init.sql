@@ -1,9 +1,3 @@
-CREATE DATABASE IF NOT EXISTS blockchain_transactions
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_0900_ai_ci;
-
-USE blockchain_transactions;
-
 CREATE TABLE IF NOT EXISTS transactions (
   id CHAR(36) NOT NULL PRIMARY KEY,
   idempotency_key VARCHAR(128) NOT NULL,
