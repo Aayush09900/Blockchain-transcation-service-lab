@@ -1,52 +1,73 @@
-# Production Hardening Checklist
-
-This project is an engineering lab. The checklist below defines the next controls required for a production deployment.
+# Operations Checklist
 
 ## Application
 
-- [x] Idempotency handling
-- [x] Idempotency conflict detection
-- [x] Explicit transaction state machine
-- [x] Exact decimal-string amount handling
-- [x] Request body size limit
-- [x] Authentication boundary
-- [x] Rate limiting
+- [x] MySQL transactional persistence
+- [x] MySQL idempotency constraint
+- [x] MySQL transaction outbox
+- [x] MongoDB audit/read model
+- [x] ethers.js blockchain boundary
+- [x] Hardhat contract test suite
+- [x] Request validation
+- [x] Path security tests
+- [x] Rate-limit bounds
 - [x] Security headers
-- [x] Health and readiness endpoints
-- [x] Graceful SIGTERM/SIGINT shutdown
-- [ ] Durable PostgreSQL persistence
-- [ ] Distributed idempotency constraint
-- [ ] Durable queue
-- [ ] Worker retry/backoff policy
-- [ ] RPC failover
-- [ ] Confirmation-depth policy
-- [ ] Reconciliation scheduler
-- [ ] Dead-letter queue
-- [ ] Distributed rate limiting
+- [x] Health/readiness
+- [x] Graceful shutdown
+- [x] Non-root container
+- [x] CI security validation
+- [x] Repository health check
 
 ## Infrastructure
 
-- [x] Non-root container
-- [x] Container healthcheck
+- [x] Docker Compose development stack
+- [x] MySQL healthcheck
+- [x] MongoDB healthcheck
 - [x] Secret exclusion from Git
-- [x] CI dependency audit
+- [x] Production configuration validation
 - [ ] TLS termination
-- [ ] Network firewall/security-group rules
-- [ ] Private database subnet
-- [ ] Secret manager
+- [ ] Cloud firewall/security-group policy
+- [ ] Private database networking
+- [ ] Managed secret storage
 - [ ] Centralized logs
 - [ ] Metrics and alerting
 - [ ] Backup and restore testing
 
-## Blockchain safety
+## Blockchain
 
-- [ ] Chain allowlist
-- [ ] RPC endpoint health checks
+- [x] ethers.js adapter
+- [x] chain ID validation
+- [x] on-chain anchor contract
+- [x] Hardhat integration tests
+- [ ] RPC failover
 - [ ] Nonce management
-- [ ] Gas/fee policy
-- [ ] Confirmation depth
+- [ ] Fee/gas policy
+- [ ] Chain allowlist
+- [ ] Confirmation-depth policy
 - [ ] Reorg handling
 - [ ] Receipt verification
-- [ ] On-chain reconciliation
+- [ ] Reconciliation
 
-Do not connect this repository to real funds until the unchecked persistence, queue, blockchain, infrastructure, and security controls have been implemented and reviewed.
+## Data consistency
+
+The system of record is MySQL.
+
+MongoDB is an audit/read model and must never be treated as the authoritative transaction ledger.
+
+The MySQL outbox provides the durable handoff between transactional state and MongoDB.
+
+## Deployment
+
+For a real production deployment:
+
+1. provision MySQL with backups and restricted network access;
+2. provision MongoDB with authentication, TLS and appropriate replica configuration;
+3. provision a managed secret store;
+4. deploy the API and outbox worker separately;
+5. place the API behind TLS and a network firewall;
+6. configure blockchain RPC credentials and an allowlisted chain;
+7. deploy the receipt-anchor contract only through an audited deployment process;
+8. enable metrics, logs and alerts;
+9. test restore and disaster recovery before handling real funds.
+
+Do not run the production configuration without these infrastructure controls.
