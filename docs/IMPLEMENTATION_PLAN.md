@@ -27,6 +27,9 @@ Implemented; final candidate status is gated by application, Hardhat, repository
 ## Phase 8 — Observability
 Implemented: authenticated Prometheus-format metrics, low-cardinality HTTP telemetry, outbox lag telemetry, broadcast/verification outcomes, reorg/recovery counters, confirmation evidence, and throttled worker heartbeats.
 
+## Phase 8a — Fee and gas policy
+Completed: production blockchain mode now requires an explicit gas ceiling plus EIP-1559 max-fee and max-priority-fee ceilings, with exact decimal parsing and bounded safety checks.
+
 ## Phase 9 — Docker/CI
 CI gates are implemented for reproducible installs, syntax, application tests, Hardhat compile/tests, repository health, dependency audit, container build, and HIGH/CRITICAL image scanning.
 
