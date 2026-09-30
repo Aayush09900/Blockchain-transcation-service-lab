@@ -196,3 +196,49 @@ test("blockchain confirmation depth defaults to one and is bounded", () => {
     /CHAIN_CONFIRMATIONS must be an integer between 1 and 1000/
   );
 });
+
+
+test("blockchain configuration supports multiple RPC endpoints and deduplicates the primary", () => {
+  const base = {
+    NODE_ENV: "production",
+    API_TOKEN: "long-test-token-123456789012345678901234",
+    MYSQL_URL: "mysql://example",
+    MONGO_URL: "mongodb://example",
+    BLOCKCHAIN_ENABLED: "true",
+    CHAIN_RPC_URL: "https://primary.example",
+    CHAIN_RPC_URLS:
+      "https://backup-a.example, https://primary.example, https://backup-b.example",
+    CHAIN_ID: "11155111",
+    ANCHOR_CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000001",
+    CHAIN_SIGNER_PRIVATE_KEY: testPrivateKey
+  };
+
+  const config = loadConfig(base);
+
+  assert.deepEqual(config.chainRpcUrls, [
+    "https://primary.example",
+    "https://backup-a.example",
+    "https://backup-b.example"
+  ]);
+  assert.equal(config.chainRpcUrl, "https://primary.example");
+});
+
+test("production rejects insecure backup RPC endpoints", () => {
+  const base = {
+    NODE_ENV: "production",
+    API_TOKEN: "long-test-token-123456789012345678901234",
+    MYSQL_URL: "mysql://example",
+    MONGO_URL: "mongodb://example",
+    BLOCKCHAIN_ENABLED: "true",
+    CHAIN_RPC_URL: "https://primary.example",
+    CHAIN_RPC_URLS: "https://backup-a.example, http://backup-b.example",
+    CHAIN_ID: "11155111",
+    ANCHOR_CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000001",
+    CHAIN_SIGNER_PRIVATE_KEY: testPrivateKey
+  };
+
+  assert.throws(
+    () => loadConfig(base),
+    /CHAIN_RPC_URLS must use HTTPS in production/
+  );
+});
