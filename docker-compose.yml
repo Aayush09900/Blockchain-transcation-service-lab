@@ -44,6 +44,13 @@ services:
       - backend
 
   api:
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid,nodev
     build: .
     restart: unless-stopped
     environment:
@@ -69,6 +76,13 @@ services:
       - backend
 
   outbox-worker:
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid,nodev
     build: .
     restart: unless-stopped
     command: ["node", "src/outbox-worker.js"]
@@ -91,6 +105,13 @@ services:
       - backend
 
   blockchain-confirmation-worker:
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid,nodev
     profiles: ["blockchain"]
     build: .
     restart: unless-stopped
