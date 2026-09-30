@@ -1,119 +1,170 @@
-# Blockchain Transaction Service Lab Architecture
+# System Architecture
 
-## 1. Scope
+## Architecture decision
 
-This repository is an engineering lab for a reliable blockchain transaction-processing backend. It demonstrates production-oriented boundaries without claiming that the repository alone is a production custody platform.
+Use MySQL as the transactional system of record, MongoDB as an audit/read model, ethers.js as the blockchain boundary, and Hardhat as the local Ethereum test environment.
 
-## 2. Current implemented architecture
+This avoids using MongoDB as the primary financial ledger while still gaining a document-oriented event/history model.
 
-Client/API
+## 1. Request plane
+
+```
+Client
   |
   v
-Security Edge
-  |-- Authentication
-  |-- Rate Limiting
-  |-- Input Validation
-  |-- Path Validation
-  |-- CORS / Security Headers
+HTTP API
+  |
+  +--> Authentication
+  +--> Rate Limiting
+  +--> CORS
+  +--> Content-Type Validation
+  +--> JSON Validation
+  +--> UUID Path Validation
   |
   v
 Transaction Service
-  |-- Idempotency
-  |-- State Machine
+```
+
+## 2. Transaction state plane
+
+MySQL owns:
+
+- transaction identity
+- idempotency key
+- sender/receiver
+- exact decimal amount
+- transaction status
+- transaction hash
+- attempt count
+- failure reason
+- timestamps
+- outbox events
+
+The transaction and its outbox entry are written in the same MySQL transaction.
+
+## 3. Outbox pattern
+
+```
+MySQL transaction
+      |
+      +--> transactions
+      |
+      +--> transaction_outbox
+                    |
+                    v
+              outbox-worker
+                    |
+                    v
+                 MongoDB
+```
+
+The worker is intentionally separate from the HTTP server.
+
+If publishing fails, the outbox row remains unpublished and its attempt count/error are updated.
+
+MongoDB uses a unique event ID, making repeated delivery idempotent.
+
+## 4. Blockchain plane
+
+```
+Transaction
+    |
+    v
+ethers.js adapter
+    |
+    +--> JsonRpcProvider
+    +--> Wallet signer
+    +--> Contract
+    |
+    v
+Ethereum network
+```
+
+The adapter is isolated in `src/blockchain-adapter.js`.
+
+The included Solidity contract is an educational receipt anchor. It stores the transaction identity, sender, receiver and amount and emits an indexed event.
+
+It does not custody user funds.
+
+## 5. Testing plane
+
+```
+Hardhat 3
+  |
+  +--> Solidity compiler
+  +--> local EVM
+  +--> hardhat-ethers
+  +--> ethers.js
   |
   v
-PostgreSQL
-  |-- Transactions
-  |-- Idempotency Constraint
-  |-- Audit Events
+TransactionReceiptAnchor tests
+```
 
-## 3. Planned transaction execution plane
+Hardhat 3 supports both Solidity and TypeScript/JavaScript testing strategies and provides test profiles that can increase fuzzing intensity in CI. citeturn590372search1turn590372search0
 
-Transaction Service
-  |
-  v
-Durable Job Queue
-  |
-  v
-Worker
-  |-- Retry / Backoff / Dead Letter Queue
-  |
-  v
-Blockchain RPC Adapter
-  |
-  v
-Receipt / Confirmation Listener
-  |
-  v
-Reconciliation
+## 6. Database responsibilities
 
-The queue/worker and live blockchain execution plane are intentionally separated from the core API and persistence layer.
+### MySQL
 
-## 4. Transaction lifecycle
+Use for:
 
-CREATED -> SUBMITTED -> CONFIRMED
-   |          |
-   +--------> FAILED
+- source-of-truth transaction state
+- idempotency
+- state transitions
+- transactional outbox
 
-Invalid transitions are rejected. Terminal states cannot be silently overwritten.
+MySQL2 provides connection pooling, prepared statements and Promise APIs. citeturn933955search0turn933955search2
 
-## 5. Data consistency
+### MongoDB
 
-PostgreSQL provides:
+Use for:
 
-- Unique idempotency key
-- Parameterized SQL
-- Transactional state changes
-- Transaction event/audit records
-- Row locking during state transitions
-- Indexes for lifecycle and event access
-- Unique transaction hash constraint when a hash exists
+- immutable audit events
+- transaction snapshots
+- read-heavy history queries
 
-Concurrent idempotency requests use INSERT ... ON CONFLICT DO NOTHING followed by a locked read.
+The official Node driver supports majority write concerns and ACID multi-document transactions when a future use case needs them. citeturn849922search0turn849922search4
 
-## 6. Security boundaries
+## 7. Failure model
 
-- HTTPS/TLS should terminate at the deployment edge.
-- Cloud firewall/security-group rules should expose only required ports.
-- The database should remain on a private network.
-- API authentication is required for protected endpoints.
-- CORS is allowlist-based and disabled by default.
-- Request bodies have a fixed upper bound.
-- Transaction IDs are restricted to UUID format.
-- Unexpected server errors are not returned verbatim.
-- Secrets are loaded from environment or managed secret storage, not Git.
-- Production database TLS defaults to enabled unless explicitly overridden.
+### MySQL unavailable
 
-## 7. Operational boundaries
+API is not ready and the service should not accept new transactions.
 
-Liveness:
-GET /health
+### MongoDB unavailable
 
-Readiness:
-GET /ready
+The source-of-truth transaction remains in MySQL. The outbox remains pending and can be retried.
 
-The readiness endpoint checks PostgreSQL when persistence is configured.
+### RPC unavailable
 
-The server supports graceful shutdown for SIGTERM and SIGINT and returns an X-Request-ID for request tracing.
+Blockchain operations fail without changing the authoritative transaction state to confirmed.
 
-## 8. Production hardening still required
+### Worker crash
 
-The following are explicit next-stage components:
+Unpublished outbox records remain in MySQL.
 
-- Durable queue and worker execution
-- RPC failover
-- Nonce management
-- Fee/gas policy
+### Duplicate API request
+
+MySQL idempotency constraint returns the existing transaction.
+
+### Duplicate Mongo delivery
+
+MongoDB unique event ID makes the second delivery a no-op.
+
+## 8. Production next steps
+
+- Dedicated durable queue for blockchain execution
+- RPC failover and health scoring
+- Nonce manager
+- Gas/fee policy
 - Confirmation depth
-- Reorg handling
-- Receipt validation
-- Chain allowlisting
+- Reorg detection
+- On-chain receipt verification
 - Reconciliation scheduler
-- Dead-letter queue
 - Distributed rate limiting
-- Centralized metrics, logging, and tracing
+- OpenTelemetry metrics/tracing
 - Managed secrets
-- TLS and cloud network policy
-- Backups and restore testing
+- Production TLS and network policy
+- Backup/restore automation
 - Disaster recovery
-- Independent security review
+- External security review
