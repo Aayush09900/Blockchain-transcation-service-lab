@@ -53,6 +53,16 @@ The repository was re-checked across:
 | SEC-28 | Concurrent submit/claim errors could be reported as blockchain broadcast ambiguity | Medium | Broadcast-ambiguity wrapping is now limited to actual broadcast and post-broadcast persistence failures; initial BROADCASTING claim errors propagate unchanged |
 | SEC-29 | Single-RPC dependency and concurrent signer calls could create availability or nonce-collision risk | High | Added multi-RPC FallbackProvider support and process-local NonceManager serialization; distributed nonce coordination remains a deployment requirement |
 | SEC-30 | Confirmed transactions lacked durable canonical block evidence for post-confirmation reorg detection | High | Persist confirmed block number/hash, revalidate canonical block evidence, and recover transactions through the REORGED state |
+| SEC-31 | Confirmation could be attempted without durable blockchain evidence | Medium | Require a stored tx hash before blockchain confirmation and return a safe 409 response |
+
+## Current observability controls
+
+- Authenticated `/metrics` endpoint.
+- Low-cardinality HTTP counters and latency histogram.
+- Broadcast and verification outcome telemetry.
+- Outbox event-lag and publish/failure telemetry.
+- Confirmation and reorg recovery telemetry.
+- Throttled worker heartbeats.
 
 ## Current architecture
 

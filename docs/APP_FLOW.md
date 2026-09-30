@@ -3,6 +3,9 @@
 ## Startup
 Validate environment -> connect MySQL -> initialize MongoDB/audit worker -> initialize blockchain provider when enabled -> start HTTP API.
 
+## Metrics
+GET /metrics -> authentication -> low-cardinality Prometheus exposition.
+
 ## Authentication
 Client credentials/token -> authentication middleware -> authorized API request.
 
@@ -23,6 +26,8 @@ If broadcast or persistence becomes ambiguous after the chain may have accepted 
 
 ## Confirmation
 SUBMITTED -> query blockchain receipt -> verify receipt -> persist block/receipt evidence -> CONFIRMED.
+
+CONFIRMED -> revalidate canonical block evidence -> REORGED when replaced -> reverify -> CONFIRMED.
 
 No receipt or temporary RPC failure does not by itself mean FAILED.
 

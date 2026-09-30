@@ -22,13 +22,13 @@ Completed: MySQL outbox rows use worker ownership leases, `FOR UPDATE SKIP LOCKE
 Completed: receipt verification regression coverage now includes pending receipts, successful receipts, reverted receipts, RPC failures, repeated verification, and payload mismatch protection. State-machine tests cover terminal-state protection.
 
 ## Phase 7 — Security regression
-In progress for this change set: run application, Hardhat, repository-health, dependency-audit, CodeQL, and container validation on the merged candidate.
+Implemented; final candidate status is gated by application, Hardhat, repository-health, dependency-audit, CodeQL, and container validation checks.
 
 ## Phase 8 — Observability
-Add structured logs, correlation IDs, outbox lag, RPC errors, confirmation latency, and worker health metrics.
+Implemented: authenticated Prometheus-format metrics, low-cardinality HTTP telemetry, outbox lag telemetry, broadcast/verification outcomes, reorg/recovery counters, confirmation evidence, and throttled worker heartbeats.
 
 ## Phase 9 — Docker/CI
-Validate reproducible builds, contract tests, application tests, security checks, and container startup.
+CI gates are implemented for reproducible installs, syntax, application tests, Hardhat compile/tests, repository health, dependency audit, container build, and HIGH/CRITICAL image scanning.
 
 ## Phase 10 — Deployment
 Validate staging first. Production requires managed secrets, RPC redundancy, nonce/fee management, reorg handling, reconciliation, backups, disaster recovery, and operational alerting.

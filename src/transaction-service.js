@@ -15,6 +15,7 @@ export const TransactionStatus = Object.freeze({
   BROADCASTING: "BROADCASTING",
   SUBMITTED: "SUBMITTED",
   CONFIRMED: "CONFIRMED",
+  REORGED: "REORGED",
   FAILED: "FAILED"
 });
 
@@ -22,7 +23,8 @@ const transitions = {
   CREATED: new Set(["BROADCASTING", "FAILED", "SUBMITTED"]),
   BROADCASTING: new Set(["SUBMITTED", "FAILED"]),
   SUBMITTED: new Set(["CONFIRMED", "FAILED"]),
-  CONFIRMED: new Set([]),
+  CONFIRMED: new Set(["REORGED"]),
+  REORGED: new Set(["SUBMITTED", "CONFIRMED"]),
   FAILED: new Set(["BROADCASTING"])
 };
 
