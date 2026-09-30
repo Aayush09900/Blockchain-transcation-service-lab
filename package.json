@@ -1,19 +1,29 @@
 {
   "name": "blockchain-transaction-service-lab",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "Blockchain transaction processing service lab with idempotency, PostgreSQL persistence, API security, testing, and production-oriented operational controls",
+  "description": "Production-oriented blockchain transaction service using MySQL, MongoDB, ethers.js, and Hardhat",
   "type": "module",
   "scripts": {
     "test": "node --test",
+    "test:hardhat": "hardhat test",
+    "test:hardhat:ci": "hardhat test --build-profile production --test-profile ci",
+    "chain:compile": "hardhat compile",
     "start": "node src/http-server.js",
     "start:core": "node src/transaction-service.js",
+    "start:outbox": "node src/outbox-worker.js",
     "verify": "node scripts/repo-health-check.js"
   },
   "dependencies": {
-    "pg": "^8.23.0"
+    "ethers": "6.17.0",
+    "mongodb": "7.7.0",
+    "mysql2": "3.24.4"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-ethers": "4.2.0",
+    "hardhat": "3.18.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   }
 }
