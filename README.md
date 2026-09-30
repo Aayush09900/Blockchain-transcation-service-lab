@@ -1,78 +1,102 @@
 # Blockchain Transaction Service Lab
 
-A small backend lab for designing **reliable blockchain transaction processing**.
+A security-conscious backend lab for designing reliable blockchain transaction processing.
 
-The goal is to practice the engineering problems that appear between an API request and an on-chain confirmation:
+The project focuses on the engineering boundary between an API request and an on-chain confirmation:
 
-`API request → idempotency → transaction state → broadcast → confirmation → reconciliation`
+`API request -> authentication -> idempotency -> state machine -> transaction processing -> confirmation -> reconciliation`
 
-## What this repository demonstrates
+## Current capabilities
 
-- Idempotency keys for duplicate client requests
-- Explicit transaction state transitions
-- Separation of an internal request ID from the blockchain transaction hash
-- Confirmation tracking
-- Retry-safe state handling
-- Small, testable service boundaries
-- CI validation with Node.js
+- Idempotency keys with conflict detection
+- Explicit transaction lifecycle
+- Exact decimal-string amount handling
+- Internal transaction IDs separated from blockchain transaction hashes
+- HTTP API with bearer-token authentication
+- Request body size limits
+- In-memory rate limiting
+- Security response headers
+- Health and readiness endpoints
+- Graceful shutdown
+- Non-root production container
+- CI dependency audit and test execution
+- Security and architecture documentation
 
-This is intentionally an educational core service, not a production custody system.
+## Transaction lifecycle
 
-## State model
+`CREATED -> SUBMITTED -> CONFIRMED`
 
-`CREATED → SUBMITTED → CONFIRMED`
+A transaction can move to `FAILED` from `CREATED` or `SUBMITTED`.
 
-A transaction may also move to `FAILED` from `CREATED` or `SUBMITTED`.
+Terminal states are not silently overwritten.
 
-Terminal states are not silently overwritten. An already-confirmed transaction remains confirmed even when a duplicate request arrives.
+## Architecture
 
-## Example
+`Client/API -> Security Edge -> Transaction Service -> Queue -> Worker -> Blockchain/RPC -> Confirmation/Event Listener -> Reconciliation/Audit`
 
-```js
-const service = new TransactionService();
+The current repository implements the API and core transaction service. Queue, worker, durable persistence, blockchain adapters, and reconciliation remain explicit production-hardening work.
 
-const first = service.submit({
-  idempotencyKey: "withdrawal-123",
-  from: "0xsender",
-  to: "0xreceiver",
-  amount: "1000000000000000"
-});
+See:
 
-const duplicate = service.submit({
-  idempotencyKey: "withdrawal-123",
-  from: "0xsender",
-  to: "0xreceiver",
-  amount: "1000000000000000"
-});
+- `docs/ARCHITECTURE.md`
+- `docs/SECURITY-ARCHITECTURE.md`
+- `docs/API.md`
+- `docs/OPERATIONS.md`
 
-// Same internal transaction is returned.
-console.log(first.id === duplicate.id);
-```
+## Run locally
 
-## Run
+Set an API token:
 
 ```bash
+# PowerShell
+$env:API_TOKEN="change-me"
 npm install
 npm test
+npm start
 ```
 
-## Engineering roadmap
+Health:
 
-Next increments are planned around:
+```
+GET http://localhost:3000/health
+```
 
-1. Persistent storage
-2. Retry/backoff policy
-3. Chain confirmation depth
-4. RPC failure handling
-5. Reconciliation jobs
-6. PostgreSQL persistence
-7. Queue-based workers
-8. Observability and audit logs
-9. API authentication and authorization
-10. Multi-chain transaction adapters
+Create a transaction:
 
-## Open-source learning
+```
+POST /v1/transactions
+Authorization: Bearer change-me
+Idempotency-Key: withdrawal-123
+Content-Type: application/json
 
-The repository is intentionally small so changes can be reviewed easily. Contributions should focus on reliability, testing, documentation, and blockchain integration patterns.
+{
+  "from": "0xsender",
+  "to": "0xreceiver",
+  "amount": "1000000000000000"
+}
+```
 
-**Do not use this repository for real funds or production custody.**
+## Security model
+
+The project treats security as defense in depth:
+
+1. Network firewall / security-group controls
+2. TLS at the deployment edge
+3. Authentication and authorization
+4. Rate limiting
+5. Request validation and body-size limits
+6. Idempotent transaction handling
+7. Explicit state transitions
+8. Secret management outside Git
+9. Audit/observability controls
+10. CI security checks
+
+A code repository cannot create the cloud/network firewall itself. Infrastructure-level firewall rules must be configured at deployment.
+
+## Production-readiness status
+
+This is a serious engineering lab, but it is not yet a production custody service.
+
+Before real funds or production custody are considered, the service still needs durable PostgreSQL persistence, distributed idempotency constraints, a durable queue and workers, retry/backoff and dead-letter handling, RPC failover, nonce and fee management, confirmation-depth and reorg handling, on-chain reconciliation, centralized observability, secret management, TLS, network segmentation, backups, and a security review.
+
+**Do not use this repository with real funds.**
