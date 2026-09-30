@@ -288,15 +288,33 @@ export class MySqlTransactionStore {
           ? current.tx_hash
           : validateTransactionHash(patch.txHash);
 
+      const hasBlockEvidence =
+        patch.confirmedBlockNumber !== undefined ||
+        patch.confirmedBlockHash !== undefined;
+
+      if (
+        nextStatus === "CONFIRMED" &&
+        hasBlockEvidence &&
+        (patch.confirmedBlockNumber === undefined ||
+          patch.confirmedBlockHash === undefined)
+      ) {
+        const error = new Error(
+          "confirmed block number and hash must be provided together"
+        );
+        error.code = "VALIDATION_ERROR";
+        error.statusCode = 400;
+        throw error;
+      }
+
       const confirmedBlockNumber =
-        nextStatus === "CONFIRMED"
+        nextStatus === "CONFIRMED" && hasBlockEvidence
           ? validateBlockNumber(patch.confirmedBlockNumber)
           : nextStatus === "REORGED"
             ? null
             : current.confirmed_block_number;
 
       const confirmedBlockHash =
-        nextStatus === "CONFIRMED"
+        nextStatus === "CONFIRMED" && hasBlockEvidence
           ? validateBlockHash(patch.confirmedBlockHash)
           : nextStatus === "REORGED"
             ? null
