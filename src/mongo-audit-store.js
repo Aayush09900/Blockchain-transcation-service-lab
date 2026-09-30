@@ -23,9 +23,12 @@ export class MongoAuditStore {
     this.databaseName = databaseName;
     this.events = null;
     this.transactions = null;
+    this.connected = false;
   }
 
   async connect() {
+    if (this.connected) return;
+
     await this.client.connect();
 
     const database = this.client.db(this.databaseName);
@@ -47,18 +50,30 @@ export class MongoAuditStore {
       { transactionId: 1 },
       { unique: true, name: "ux_transaction_snapshot_id" }
     );
+
+    this.connected = true;
+  }
+
+  async ensureConnected() {
+    if (!this.connected) {
+      await this.connect();
+    }
   }
 
   async close() {
     await this.client.close();
+    this.connected = false;
   }
 
   async healthCheck() {
+    await this.ensureConnected();
     await this.client.db(this.databaseName).command({ ping: 1 });
     return true;
   }
 
   async appendEvent(event) {
+    await this.ensureConnected();
+
     const document = {
       eventId: String(event.eventId),
       transactionId: String(event.transactionId),
@@ -83,6 +98,8 @@ export class MongoAuditStore {
   }
 
   async upsertSnapshot(transaction) {
+    await this.ensureConnected();
+
     await this.transactions.updateOne(
       { transactionId: transaction.id },
       {
@@ -106,6 +123,8 @@ export class MongoAuditStore {
   }
 
   async listEvents(transactionId, limit = 100) {
+    await this.ensureConnected();
+
     const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
 
     return this.events
