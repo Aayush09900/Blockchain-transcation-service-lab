@@ -59,6 +59,7 @@ The repository was re-checked across:
 ## Current observability controls
 
 - Authenticated `/metrics` endpoint.
+- Production blockchain broadcasts enforce explicit gas and fee ceilings.
 - Low-cardinality HTTP counters and latency histogram.
 - Broadcast and verification outcome telemetry.
 - Outbox event-lag and publish/failure telemetry.
