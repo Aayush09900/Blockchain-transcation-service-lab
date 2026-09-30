@@ -151,7 +151,6 @@ const workflowFiles = [
   ".github/workflows/ci.yml",
   ".github/workflows/security.yml",
   ".github/workflows/publish-image.yml",
-  ".github/workflows/codeql.yml",
   ".github/workflows/codeql.yml"
 ];
 
