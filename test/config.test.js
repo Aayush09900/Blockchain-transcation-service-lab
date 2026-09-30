@@ -31,7 +31,7 @@ test("production configuration requires authentication and both databases", () =
         MONGO_URL: "mongodb://example",
         BLOCKCHAIN_ENABLED: "false"
       }),
-    /API_TOKEN is required in production/
+    /API_TOKEN must contain at least 32 characters in production/
   );
 
   assert.throws(
