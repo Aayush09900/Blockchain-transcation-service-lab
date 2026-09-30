@@ -45,8 +45,8 @@
 - [ ] Chain allowlist
 - [ ] Confirmation-depth policy
 - [ ] Reorg handling
-- [ ] Receipt verification
-- [ ] Reconciliation
+- [x] Receipt verification
+- [x] Broadcast reconciliation from indexed anchor events
 
 ## Data consistency
 
@@ -88,7 +88,7 @@ The API can still expose the manual `/confirm` endpoint for deterministic operat
 
 ### Broadcast crash recovery
 
-The confirmation worker also scans `BROADCASTING` transactions. When an API process loses the database write after an Ethereum anchor was broadcast, the worker searches recent `TransactionAnchored` events for the transaction ID, recovers the on-chain transaction hash, verifies the transaction payload, and resumes the MySQL lifecycle at `SUBMITTED`.
+The `/submit` and `/anchor` endpoints persist `BROADCASTING` before broadcasting. When the API loses the post-broadcast database write or the RPC response is ambiguous, the worker searches recent `TransactionAnchored` events for the transaction ID, recovers the on-chain transaction hash, verifies the transaction payload, and resumes the MySQL lifecycle at `SUBMITTED`. The API never marks this ambiguous case as `FAILED`.
 
 Configure the recovery window with:
 
