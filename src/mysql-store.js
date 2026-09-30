@@ -168,7 +168,7 @@ export class MySqlTransactionStore {
       [safeLimit]
     );
 
-    return rows.map(mapRow);
+    return rows.map(mapProcessingRow);
   }
 
   async listPendingBlockchain(limit = 100) {
@@ -184,7 +184,7 @@ export class MySqlTransactionStore {
       [safeLimit]
     );
 
-    return rows.map(mapRow);
+    return rows.map(mapProcessingRow);
   }
 
   async listSubmitted(limit = 100) {
@@ -201,6 +201,24 @@ export class MySqlTransactionStore {
     );
 
     return rows.map(mapRow);
+  }
+
+  async getProcessing(id) {
+    const normalizedId = requireNonEmptyString(id, "id", 64);
+
+    const [rows] = await this.pool.execute(
+      "SELECT * FROM transactions WHERE id = ?",
+      [normalizedId]
+    );
+
+    if (rows.length === 0) {
+      const error = new Error("transaction not found");
+      error.code = "NOT_FOUND";
+      error.statusCode = 404;
+      throw error;
+    }
+
+    return mapProcessingRow(rows[0]);
   }
 
   async transition(id, nextStatus, patch = {}) {
@@ -406,6 +424,13 @@ function canonicalDecimal(value) {
   return stringValue
     .replace(/0+$/, "")
     .replace(/\.$/, "");
+}
+
+function mapProcessingRow(row) {
+  return {
+    ...mapRow(row),
+    signedTransaction: row.signed_transaction ?? null
+  };
 }
 
 function mapRow(row) {
