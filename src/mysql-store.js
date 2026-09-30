@@ -19,7 +19,8 @@ export class MySqlTransactionStore {
     url = process.env.MYSQL_URL,
     maxPoolSize = 10,
     ssl = process.env.MYSQL_SSL === "true",
-    workerId = randomUUID()
+    workerId = randomUUID(),
+    leaseMs = 60_000
   } = {}) {
     if (!url) {
       const error = new Error("MYSQL_URL is required");
@@ -30,7 +31,17 @@ export class MySqlTransactionStore {
 
     const parsed = new URL(url);
 
+    const normalizedLeaseMs = Number(leaseMs);
+
+    if (!Number.isFinite(normalizedLeaseMs) || normalizedLeaseMs < 10_000 || normalizedLeaseMs > 900_000) {
+      const error = new Error("leaseMs must be between 10000 and 900000 milliseconds");
+      error.code = "CONFIG_ERROR";
+      error.statusCode = 500;
+      throw error;
+    }
+
     this.workerId = String(workerId).slice(0, 64);
+    this.leaseMs = Math.trunc(normalizedLeaseMs);
 
     this.pool = mysql.createPool({
       host: parsed.hostname,
@@ -304,7 +315,7 @@ export class MySqlTransactionStore {
   async claimOutboxBatch(limit = 50) {
     const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 500));
     const connection = await this.pool.getConnection();
-    const leaseUntil = new Date(Date.now() + 60_000);
+    const leaseUntil = new Date(Date.now() + this.leaseMs);
 
     try {
       await connection.beginTransaction();
@@ -343,7 +354,7 @@ export class MySqlTransactionStore {
       const placeholders = ids.map(() => "?").join(", ");
 
       const [claimedRows] = await connection.query(
-        `SELECT id, event_id, transaction_id, event_type, payload, claimed_by
+        `SELECT id, event_id, transaction_id, event_type, payload, created_at, claimed_by
          FROM transaction_outbox
          WHERE id IN (${placeholders})
            AND claimed_by = ?
