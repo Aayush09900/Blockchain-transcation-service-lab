@@ -39,7 +39,10 @@ const requiredFiles = [
   ".github/workflows/deploy-railway.yml",
   ".github/workflows/pages.yml",
   ".github/dependabot.yml",
+  ".github/CODEOWNERS",
+  ".github/pull_request_template.md",
   "docs/openapi.yaml",
+  "docs/BRANCH-PROTECTION.md",
   "docs/RAILWAY-DEPLOYMENT.md"
 ];
 
