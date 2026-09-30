@@ -1,18 +1,21 @@
 import { randomUUID } from "node:crypto";
 import {
   requireNonEmptyString,
+  validateTransactionHash,
   validateTransactionInput
 } from "./validation.js";
 
 export const TransactionStatus = Object.freeze({
   CREATED: "CREATED",
+  BROADCASTING: "BROADCASTING",
   SUBMITTED: "SUBMITTED",
   CONFIRMED: "CONFIRMED",
   FAILED: "FAILED"
 });
 
 const transitions = {
-  CREATED: new Set(["SUBMITTED", "FAILED"]),
+  CREATED: new Set(["BROADCASTING", "FAILED", "SUBMITTED"]),
+  BROADCASTING: new Set(["SUBMITTED", "FAILED"]),
   SUBMITTED: new Set(["CONFIRMED", "FAILED"]),
   CONFIRMED: new Set([]),
   FAILED: new Set([])
@@ -25,13 +28,7 @@ export class TransactionService {
   }
 
   submit(input) {
-    const {
-      idempotencyKey,
-      from,
-      to,
-      amount
-    } = validateTransactionInput(input);
-
+    const { idempotencyKey, from, to, amount } = validateTransactionInput(input);
     const existingId = this.idempotency.get(idempotencyKey);
 
     if (existingId) {
@@ -76,10 +73,13 @@ export class TransactionService {
     return this.get(id);
   }
 
+  markBroadcasting(id) {
+    return this.transition(id, TransactionStatus.BROADCASTING);
+  }
+
   markSubmitted(id, txHash) {
-    const hash = requireNonEmptyString(txHash, "txHash", 256);
     return this.transition(id, TransactionStatus.SUBMITTED, {
-      txHash: hash,
+      txHash: validateTransactionHash(txHash),
       attempts: (this.transactions.get(id)?.attempts ?? 0) + 1
     });
   }
@@ -91,10 +91,8 @@ export class TransactionService {
   }
 
   markFailed(id, reason = "transaction failed") {
-    const failureReason = requireNonEmptyString(reason, "failureReason", 500);
-
     return this.transition(id, TransactionStatus.FAILED, {
-      failureReason
+      failureReason: requireNonEmptyString(reason, "failureReason", 500)
     });
   }
 
@@ -125,9 +123,7 @@ export class TransactionService {
       return this.get(id);
     }
 
-    const allowed = transitions[current.status];
-
-    if (!allowed?.has(nextStatus)) {
+    if (!transitions[current.status]?.has(nextStatus)) {
       const error = new Error(
         `invalid transition: ${current.status} -> ${nextStatus}`
       );
@@ -151,12 +147,16 @@ export class TransactionService {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const service = new TransactionService();
 
-  const tx = service.submit({
-    idempotencyKey: "demo-1",
-    from: "0xsender",
-    to: "0xreceiver",
-    amount: "1000000000000000"
-  });
-
-  console.log(JSON.stringify(tx, null, 2));
+  console.log(
+    JSON.stringify(
+      service.submit({
+        idempotencyKey: "demo-1",
+        from: "0x0000000000000000000000000000000000000001",
+        to: "0x0000000000000000000000000000000000000002",
+        amount: "0.001"
+      }),
+      null,
+      2
+    )
+  );
 }
