@@ -14,20 +14,17 @@ const transitions = {
 };
 
 export class PostgresTransactionStore {
-  constructor({ connectionString = process.env.DATABASE_URL } = {}) {
+  constructor({ connectionString = process.env.DATABASE_URL, maxPoolSize = Number.parseInt(process.env.DB_POOL_MAX ?? "10", 10), ssl = process.env.DB_SSL === "true" } = {}) {
     if (!connectionString) {
       throw new Error("DATABASE_URL is required for PostgreSQL persistence");
     }
 
     this.pool = new Pool({
       connectionString,
-      max: Number.parseInt(process.env.DB_POOL_MAX ?? "10", 10),
+      max: maxPoolSize,
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 5_000,
-      ssl:
-        process.env.DB_SSL === "true"
-          ? { rejectUnauthorized: true }
-          : undefined
+      ssl: ssl ? { rejectUnauthorized: true } : undefined
     });
   }
 
