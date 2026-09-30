@@ -1,0 +1,53 @@
+name: Deploy Railway Runtime
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: railway-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy API and workers to Railway
+    runs-on: ubuntu-latest
+    environment: production
+    container: ghcr.io/railwayapp/cli:latest
+
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+      ENVIRONMENT_ID: ${{ secrets.RAILWAY_ENVIRONMENT_ID }}
+      API_SERVICE_ID: ${{ secrets.RAILWAY_API_SERVICE_ID }}
+      OUTBOX_SERVICE_ID: ${{ secrets.RAILWAY_OUTBOX_SERVICE_ID }}
+      CONFIRMATION_SERVICE_ID: ${{ secrets.RAILWAY_CONFIRMATION_SERVICE_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate deployment secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in RAILWAY_TOKEN PROJECT_ID ENVIRONMENT_ID API_SERVICE_ID OUTBOX_SERVICE_ID CONFIRMATION_SERVICE_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required deployment variable: $name"
+              exit 1
+            fi
+          done
+
+      - name: Link Railway project
+        run: railway link --project "$PROJECT_ID" --environment "$ENVIRONMENT_ID" --json
+
+      - name: Deploy API
+        run: railway up --service "$API_SERVICE_ID" --environment "$ENVIRONMENT_ID" --ci
+
+      - name: Deploy outbox worker
+        run: railway up --service "$OUTBOX_SERVICE_ID" --environment "$ENVIRONMENT_ID" --ci
+
+      - name: Deploy confirmation worker
+        run: railway up --service "$CONFIRMATION_SERVICE_ID" --environment "$ENVIRONMENT_ID" --ci
