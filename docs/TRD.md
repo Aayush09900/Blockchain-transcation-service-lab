@@ -48,7 +48,9 @@ Blockchain ambiguity is a reconciliation state/problem, not an automatic FAILED 
 JWT/bearer authentication, timing-safe credential comparison, validation, CORS allowlisting, secure headers, rate limiting, UUID validation, decimal-string amounts, safe errors, secret protection, dependency scanning, and CodeQL/security automation.
 
 ## Reliability
-Transactional outbox, retry/lease processing, confirmation polling, reconciliation for uncertain blockchain state, structured logging, and operational metrics.
+Transactional outbox, retry/lease processing, confirmation polling, reconciliation for uncertain blockchain state, multi-RPC provider failover, per-process nonce management, structured logging, and operational metrics.
+
+Multi-RPC failover and `NonceManager` protect a single service instance. Cross-instance nonce coordination remains a production requirement when multiple replicas sign from the same account.
 
 ## Deployment
 Docker for local/integration environments. Production requires managed secrets, appropriate TLS/network controls, RPC redundancy, nonce/fee management, reorg handling, monitoring, backups, and disaster recovery.
