@@ -53,3 +53,40 @@ Requires the same bearer token.
 ## Operational notes
 
 The current implementation uses in-memory state. Restarting the process loses transaction state. Durable storage and a queue/worker boundary are required before production custody or real funds are introduced.
+
+
+## Submit transaction
+
+POST /v1/transactions/:id/submit
+
+Requires the bearer token.
+
+Body:
+
+{
+  "txHash": "0x..."
+}
+
+Moves CREATED -> SUBMITTED.
+
+## Confirm transaction
+
+POST /v1/transactions/:id/confirm
+
+Moves SUBMITTED -> CONFIRMED.
+
+## Fail transaction
+
+POST /v1/transactions/:id/fail
+
+Body:
+
+{
+  "reason": "RPC timeout"
+}
+
+Moves CREATED or SUBMITTED -> FAILED.
+
+## Persistence
+
+If DATABASE_URL is configured, the API uses PostgreSQL. Without it, the service falls back to in-memory state for local development.
