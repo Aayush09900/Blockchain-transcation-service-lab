@@ -8,6 +8,7 @@ const root = process.cwd();
 const requiredFiles = [
   "package.json",
   "package-lock.json",
+  "package-lock.json",
   "README.md",
   "SECURITY.md",
   "SECURITY-TEST-REPORT.md",
@@ -41,7 +42,6 @@ const requiredFiles = [
   ".github/workflows/publish-image.yml",
   ".github/workflows/deploy-railway.yml",
   ".github/workflows/pages.yml",
-  ".github/workflows/bootstrap-lockfile.yml",
   ".github/dependabot.yml",
   ".github/CODEOWNERS",
   ".github/pull_request_template.md",
