@@ -103,7 +103,7 @@ test("blockchain configuration is mandatory when enabled", () => {
         MONGO_URL: "",
         BLOCKCHAIN_ENABLED: "true"
       }),
-    /CHAIN_RPC_URL, CHAIN_ID, ANCHOR_CONTRACT_ADDRESS, and CHAIN_SIGNER_PRIVATE_KEY/
+    /CHAIN_RPC_URL or CHAIN_RPC_URLS, CHAIN_ID, ANCHOR_CONTRACT_ADDRESS, and CHAIN_SIGNER_PRIVATE_KEY/
   );
 });
 
