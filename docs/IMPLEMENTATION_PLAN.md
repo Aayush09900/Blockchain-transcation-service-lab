@@ -19,7 +19,7 @@ Completed: broadcast and post-broadcast persistence ambiguity leave the transact
 Completed: MySQL outbox rows use worker ownership leases, `FOR UPDATE SKIP LOCKED`, expiry recovery, and ownership checks before finalization.
 
 ## Phase 6 — Confirmation tests
-Completed: receipt verification regression coverage now includes pending receipts, successful receipts, reverted receipts, RPC failures, repeated verification, and payload mismatch protection. State-machine tests cover terminal-state protection.
+Completed: receipt verification regression coverage now includes pending receipts, successful receipts, reverted receipts, RPC failures, repeated verification, payload mismatch protection, reorg evidence, and fee/gas policy validation. State-machine tests cover terminal-state protection.
 
 ## Phase 7 — Security regression
 Implemented; final candidate status is gated by application, Hardhat, repository-health, dependency-audit, CodeQL, and container validation checks.
