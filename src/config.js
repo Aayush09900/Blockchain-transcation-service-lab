@@ -1,4 +1,9 @@
 import { isAddress } from "ethers";
+import {
+  parseOptionalGasLimit,
+  parseOptionalGwei,
+  validateFeePolicy
+} from "./blockchain-fee-policy.js";
 
 function positiveInteger(value, field, fallback) {
   const raw = String(value ?? fallback).trim();
@@ -68,6 +73,15 @@ export function loadConfig(env = process.env) {
   const chainConfirmations = env.CHAIN_CONFIRMATIONS
     ? Number(env.CHAIN_CONFIRMATIONS)
     : 1;
+  const chainGasLimit = parseOptionalGasLimit(env.CHAIN_GAS_LIMIT);
+  const chainMaxFeePerGas = parseOptionalGwei(
+    env.CHAIN_MAX_FEE_GWEI,
+    "CHAIN_MAX_FEE_GWEI"
+  );
+  const chainMaxPriorityFeePerGas = parseOptionalGwei(
+    env.CHAIN_MAX_PRIORITY_FEE_GWEI,
+    "CHAIN_MAX_PRIORITY_FEE_GWEI"
+  );
 
   const mysqlSsl = booleanValue(env.MYSQL_SSL, production);
   const mongoTls = booleanValue(env.MONGO_TLS, production);
@@ -85,6 +99,22 @@ export function loadConfig(env = process.env) {
   }
 
   if (blockchainEnabled) {
+    validateFeePolicy({
+      gasLimit: chainGasLimit,
+      maxFeePerGas: chainMaxFeePerGas,
+      maxPriorityFeePerGas: chainMaxPriorityFeePerGas
+    });
+
+    if (production && (
+      chainGasLimit === null ||
+      chainMaxFeePerGas === null ||
+      chainMaxPriorityFeePerGas === null
+    )) {
+      throw configError(
+        "CHAIN_GAS_LIMIT, CHAIN_MAX_FEE_GWEI, and CHAIN_MAX_PRIORITY_FEE_GWEI are required when blockchain is enabled in production"
+      );
+    }
+
     if (
       chainRpcUrls.length === 0 ||
       !anchorContractAddress ||
@@ -181,6 +211,9 @@ export function loadConfig(env = process.env) {
     chainRpcUrls,
     chainId,
     chainConfirmations,
+    chainGasLimit,
+    chainMaxFeePerGas,
+    chainMaxPriorityFeePerGas,
     anchorContractAddress,
     signerPrivateKey
   });
