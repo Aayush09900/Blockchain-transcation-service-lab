@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   idempotency_key VARCHAR(128) NOT NULL UNIQUE,
   sender VARCHAR(128) NOT NULL,
   receiver VARCHAR(128) NOT NULL,
-  amount NUMERIC(78, 0) NOT NULL CHECK (amount > 0),
+  amount NUMERIC NOT NULL CHECK (amount > 0),
   status VARCHAR(16) NOT NULL CHECK (status IN ('CREATED', 'SUBMITTED', 'CONFIRMED', 'FAILED')),
   tx_hash VARCHAR(256),
   failure_reason VARCHAR(500),
