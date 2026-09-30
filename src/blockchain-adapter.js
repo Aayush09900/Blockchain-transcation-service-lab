@@ -217,76 +217,6 @@ export class EthersBlockchainAdapter {
     };
   }
 
-  async verifySubmittedTransaction({
-    transactionId,
-    sender,
-    receiver,
-    amountWei,
-    txHash,
-    anchorContractAddress
-  }) {
-    validateTransactionHash(txHash);
-
-    const [transaction, receipt] = await Promise.all([
-      this.provider.getTransaction(txHash),
-      this.provider.getTransactionReceipt(txHash)
-    ]);
-
-    if (!transaction) {
-      throw blockchainVerificationError("blockchain transaction not found");
-    }
-
-    if (!receipt) {
-      return { confirmed: false, receipt: null };
-    }
-
-    if (receipt.status !== 1) {
-      return { confirmed: false, reverted: true, receipt };
-    }
-
-    if (!transaction.to) {
-      throw blockchainVerificationError("transaction has no destination");
-    }
-
-    const normalizedSender = getAddress(sender);
-    const normalizedReceiver = getAddress(receiver);
-    const normalizedTo = getAddress(transaction.to);
-    const normalizedAnchor = anchorContractAddress
-      ? getAddress(anchorContractAddress)
-      : null;
-
-    if (normalizedAnchor && normalizedTo === normalizedAnchor) {
-      const parsed = CONTRACT_INTERFACE.parseTransaction({
-        data: transaction.data,
-        value: transaction.value
-      });
-
-      if (!parsed || parsed.name !== "anchor") {
-        throw blockchainVerificationError("unexpected anchor contract call");
-      }
-
-      const [encodedId, encodedSender, encodedReceiver, encodedAmount] = parsed.args;
-
-      if (
-        encodedId !== transactionIdToBytes32(transactionId) ||
-        getAddress(encodedSender) !== normalizedSender ||
-        getAddress(encodedReceiver) !== normalizedReceiver ||
-        BigInt(encodedAmount) !== BigInt(amountWei)
-      ) {
-        throw blockchainVerificationError("anchor payload does not match transaction");
-      }
-    } else if (
-      normalizedTo !== normalizedReceiver ||
-      transaction.from === null ||
-      getAddress(transaction.from) !== normalizedSender ||
-      BigInt(transaction.value) !== BigInt(amountWei)
-    ) {
-      throw blockchainVerificationError("transfer does not match transaction");
-    }
-
-    return { confirmed: true, receipt };
-  }
-
   async getTransactionReceipt(txHash) {
     validateTransactionHash(txHash);
 
@@ -360,6 +290,82 @@ export class EthersReceiptMonitor {
     }
 
     return true;
+  }
+
+
+  async verifySubmittedTransaction({
+    transactionId,
+    sender,
+    receiver,
+    amountWei,
+    txHash,
+    anchorContractAddress
+  }) {
+    validateTransactionHash(txHash);
+
+    const [transaction, receipt] = await Promise.all([
+      this.provider.getTransaction(txHash),
+      this.provider.getTransactionReceipt(txHash)
+    ]);
+
+    if (!transaction) {
+      throw blockchainVerificationError("blockchain transaction not found");
+    }
+
+    if (!receipt) {
+      return { confirmed: false, receipt: null };
+    }
+
+    if (receipt.status !== 1) {
+      return { confirmed: false, reverted: true, receipt };
+    }
+
+    if (!transaction.to) {
+      throw blockchainVerificationError("transaction has no destination");
+    }
+
+    const normalizedSender = getAddress(sender);
+    const normalizedReceiver = getAddress(receiver);
+    const normalizedTo = getAddress(transaction.to);
+    const normalizedAnchor = anchorContractAddress
+      ? getAddress(anchorContractAddress)
+      : null;
+
+    if (normalizedAnchor && normalizedTo === normalizedAnchor) {
+      const parsed = CONTRACT_INTERFACE.parseTransaction({
+        data: transaction.data,
+        value: transaction.value
+      });
+
+      if (!parsed || parsed.name !== "anchor") {
+        throw blockchainVerificationError("unexpected anchor contract call");
+      }
+
+      const [
+        encodedId,
+        encodedSender,
+        encodedReceiver,
+        encodedAmount
+      ] = parsed.args;
+
+      if (
+        encodedId !== transactionIdToBytes32(transactionId) ||
+        getAddress(encodedSender) !== normalizedSender ||
+        getAddress(encodedReceiver) !== normalizedReceiver ||
+        BigInt(encodedAmount) !== BigInt(amountWei)
+      ) {
+        throw blockchainVerificationError("anchor payload does not match transaction");
+      }
+    } else if (
+      normalizedTo !== normalizedReceiver ||
+      transaction.from === null ||
+      getAddress(transaction.from) !== normalizedSender ||
+      BigInt(transaction.value) !== BigInt(amountWei)
+    ) {
+      throw blockchainVerificationError("transfer does not match transaction");
+    }
+
+    return { confirmed: true, receipt };
   }
 
   async getTransactionReceipt(txHash) {
