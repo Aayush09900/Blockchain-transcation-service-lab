@@ -84,3 +84,16 @@ docker compose --profile blockchain up --build
 The worker polls MySQL transactions in `SUBMITTED` state, queries the configured Ethereum RPC for receipts, and transitions successful receipts to `CONFIRMED` or reverted receipts to `FAILED`.
 
 The API can still expose the manual `/confirm` endpoint for deterministic operational checks.
+
+
+### Broadcast crash recovery
+
+The confirmation worker also scans `BROADCASTING` transactions. When an API process loses the database write after an Ethereum anchor was broadcast, the worker searches recent `TransactionAnchored` events for the transaction ID, recovers the on-chain transaction hash, verifies the transaction payload, and resumes the MySQL lifecycle at `SUBMITTED`.
+
+Configure the recovery window with:
+
+```text
+CHAIN_RECOVERY_LOOKBACK_BLOCKS=20000
+```
+
+The lookback must cover the block range in which a crashed broadcast could have been mined. For long-running production systems, set this based on expected outage duration and chain block time, or replace the bounded scan with an indexed event/reconciliation service.
