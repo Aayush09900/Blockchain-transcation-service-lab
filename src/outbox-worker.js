@@ -47,7 +47,7 @@ async function publishBatch() {
       const events = await mysqlStore.claimOutboxBatch(batchSize);
 
       for (const event of events) {
-      try {
+        try {
         const payload = JSON.parse(event.payload);
 
         await mongoStore.appendEvent({
