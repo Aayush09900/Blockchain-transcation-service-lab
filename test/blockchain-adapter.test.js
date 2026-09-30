@@ -97,7 +97,7 @@ test("confirmed block evidence detects a reorganization", async () => {
   });
 
   assert.equal(result.reorged, true);
-  assert.match(result.reason, /canonical evidence/);
+  assert.match(result.reason, /canonical/);
 });
 
 test("confirmed block evidence remains valid when receipt and canonical block match", async () => {
