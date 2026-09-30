@@ -82,6 +82,6 @@ export function loadConfig(env = process.env) {
       10_000
     ),
     dbPoolMax: positiveInteger(env.DB_POOL_MAX, "DB_POOL_MAX", 10),
-    dbSsl: env.DB_SSL === "true"
+    dbSsl: env.DB_SSL ? env.DB_SSL === "true" : production
   });
 }
