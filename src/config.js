@@ -88,7 +88,8 @@ export function loadConfig(env = process.env) {
       );
     }
 
-    for (const rpcUrl of chainRpcUrls) {
+    for (const [index, rpcUrl] of chainRpcUrls.entries()) {
+      const field = index === 0 ? "CHAIN_RPC_URL" : "CHAIN_RPC_URLS";
       let parsedRpcUrl;
 
       try {
@@ -102,7 +103,7 @@ export function loadConfig(env = process.env) {
       }
 
       if (production && parsedRpcUrl.protocol !== "https:") {
-        throw configError("CHAIN_RPC_URLS must use HTTPS in production");
+        throw configError(`${field} must use HTTPS in production`);
       }
     }
 
