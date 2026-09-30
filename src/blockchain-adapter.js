@@ -1,7 +1,9 @@
 import {
   Contract,
+  Interface,
   JsonRpcProvider,
   Wallet,
+  getAddress,
   getBytes,
   id,
   isAddress
@@ -12,6 +14,8 @@ const ABI = [
   "function getAnchor(bytes32 transactionId) view returns (address sender, address receiver, uint256 amount, uint64 blockNumber, uint64 timestamp)",
   "event TransactionAnchored(bytes32 indexed transactionId, address indexed sender, address indexed receiver, uint256 amount, uint256 blockNumber, uint256 timestamp)"
 ];
+
+const CONTRACT_INTERFACE = new Interface(ABI);
 
 export class EthersBlockchainAdapter {
   constructor({ provider, signer, contractAddress }) {
@@ -29,7 +33,8 @@ export class EthersBlockchainAdapter {
 
     this.provider = provider;
     this.signer = signer;
-    this.contract = new Contract(contractAddress, ABI, signer);
+    this.contractAddress = getAddress(contractAddress);
+    this.contract = new Contract(this.contractAddress, ABI, signer);
   }
 
   static fromConfig({
@@ -98,6 +103,94 @@ export class EthersBlockchainAdapter {
     };
   }
 
+  async verifySubmittedTransaction({
+    transactionId,
+    sender,
+    receiver,
+    amountWei,
+    txHash
+  }) {
+    validateTransactionHash(txHash);
+
+    const [transaction, receipt] = await Promise.all([
+      this.provider.getTransaction(txHash),
+      this.provider.getTransactionReceipt(txHash)
+    ]);
+
+    if (!transaction) {
+      const error = new Error("blockchain transaction not found");
+      error.code = "BLOCKCHAIN_VERIFICATION_FAILED";
+      error.statusCode = 409;
+      throw error;
+    }
+
+    if (!receipt) {
+      return { confirmed: false, receipt: null };
+    }
+
+    if (receipt.status !== 1) {
+      return {
+        confirmed: false,
+        reverted: true,
+        receipt: {
+          txHash: receipt.hash,
+          status: receipt.status,
+          blockNumber: receipt.blockNumber,
+          blockHash: receipt.blockHash
+        }
+      };
+    }
+
+    if (!transaction.to) {
+      throw blockchainVerificationError("transaction has no destination");
+    }
+
+    const normalizedSender = getAddress(sender);
+    const normalizedReceiver = getAddress(receiver);
+    const normalizedTo = getAddress(transaction.to);
+
+    if (normalizedTo === this.contractAddress) {
+      const parsed = CONTRACT_INTERFACE.parseTransaction({
+        data: transaction.data,
+        value: transaction.value
+      });
+
+      if (!parsed || parsed.name !== "anchor") {
+        throw blockchainVerificationError("unexpected anchor contract call");
+      }
+
+      const [encodedId, encodedSender, encodedReceiver, encodedAmount] = parsed.args;
+
+      if (
+        encodedId !== transactionIdToBytes32(transactionId) ||
+        getAddress(encodedSender) !== normalizedSender ||
+        getAddress(encodedReceiver) !== normalizedReceiver ||
+        BigInt(encodedAmount) !== BigInt(amountWei)
+      ) {
+        throw blockchainVerificationError("anchor payload does not match transaction");
+      }
+    } else {
+      if (
+        normalizedTo !== normalizedReceiver ||
+        transaction.from === null ||
+        getAddress(transaction.from) !== normalizedSender ||
+        BigInt(transaction.value) !== BigInt(amountWei)
+      ) {
+        throw blockchainVerificationError("transfer does not match transaction");
+      }
+    }
+
+    return {
+      confirmed: true,
+      receipt: {
+        txHash: receipt.hash,
+        status: receipt.status,
+        blockNumber: receipt.blockNumber,
+        blockHash: receipt.blockHash
+      }
+    };
+  }
+
   async anchorTransaction({
     transactionId,
     sender,
@@ -122,6 +215,76 @@ export class EthersBlockchainAdapter {
       blockNumber: receipt.blockNumber,
       blockHash: receipt.blockHash
     };
+  }
+
+  async verifySubmittedTransaction({
+    transactionId,
+    sender,
+    receiver,
+    amountWei,
+    txHash,
+    anchorContractAddress
+  }) {
+    validateTransactionHash(txHash);
+
+    const [transaction, receipt] = await Promise.all([
+      this.provider.getTransaction(txHash),
+      this.provider.getTransactionReceipt(txHash)
+    ]);
+
+    if (!transaction) {
+      throw blockchainVerificationError("blockchain transaction not found");
+    }
+
+    if (!receipt) {
+      return { confirmed: false, receipt: null };
+    }
+
+    if (receipt.status !== 1) {
+      return { confirmed: false, reverted: true, receipt };
+    }
+
+    if (!transaction.to) {
+      throw blockchainVerificationError("transaction has no destination");
+    }
+
+    const normalizedSender = getAddress(sender);
+    const normalizedReceiver = getAddress(receiver);
+    const normalizedTo = getAddress(transaction.to);
+    const normalizedAnchor = anchorContractAddress
+      ? getAddress(anchorContractAddress)
+      : null;
+
+    if (normalizedAnchor && normalizedTo === normalizedAnchor) {
+      const parsed = CONTRACT_INTERFACE.parseTransaction({
+        data: transaction.data,
+        value: transaction.value
+      });
+
+      if (!parsed || parsed.name !== "anchor") {
+        throw blockchainVerificationError("unexpected anchor contract call");
+      }
+
+      const [encodedId, encodedSender, encodedReceiver, encodedAmount] = parsed.args;
+
+      if (
+        encodedId !== transactionIdToBytes32(transactionId) ||
+        getAddress(encodedSender) !== normalizedSender ||
+        getAddress(encodedReceiver) !== normalizedReceiver ||
+        BigInt(encodedAmount) !== BigInt(amountWei)
+      ) {
+        throw blockchainVerificationError("anchor payload does not match transaction");
+      }
+    } else if (
+      normalizedTo !== normalizedReceiver ||
+      transaction.from === null ||
+      getAddress(transaction.from) !== normalizedSender ||
+      BigInt(transaction.value) !== BigInt(amountWei)
+    ) {
+      throw blockchainVerificationError("transfer does not match transaction");
+    }
+
+    return { confirmed: true, receipt };
   }
 
   async getTransactionReceipt(txHash) {
@@ -232,4 +395,11 @@ export function validateTransactionHash(hash) {
 
   getBytes(hash);
   return hash;
+}
+
+function blockchainVerificationError(message) {
+  const error = new Error(message);
+  error.code = "BLOCKCHAIN_VERIFICATION_FAILED";
+  error.statusCode = 409;
+  return error;
 }
