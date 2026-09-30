@@ -221,6 +221,7 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "GET" && pathname === "/ready") {
       await mysqlStore.healthCheck();
+      await mongoStore.healthCheck();
 
       if (blockchain) {
         await blockchain.healthCheck(config.chainId);
@@ -458,6 +459,7 @@ server.requestTimeout = 15_000;
 
 async function start() {
   await mysqlStore.healthCheck();
+  await mongoStore.healthCheck();
 
   if (blockchain) {
     await blockchain.healthCheck(config.chainId);
