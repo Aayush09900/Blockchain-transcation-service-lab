@@ -32,7 +32,13 @@ function anchorTransaction({ amount = 7n, transactionId = TRANSACTION_ID } = {})
   };
 }
 
-function monitorFor({ transaction, receipt, getTransactionError, currentBlock } = {}) {
+function monitorFor({
+  transaction,
+  receipt,
+  getTransactionError,
+  currentBlock,
+  block
+} = {}) {
   return new EthersReceiptMonitor({
     provider: {
       async getTransaction() {
@@ -44,6 +50,9 @@ function monitorFor({ transaction, receipt, getTransactionError, currentBlock } 
       },
       async getBlockNumber() {
         return currentBlock ?? receipt?.blockNumber ?? 0;
+      },
+      async getBlock() {
+        return block ?? null;
       }
     }
   });
@@ -60,6 +69,61 @@ test("multiple RPC endpoints create a failover provider", () => {
   assert.equal(provider.quorum, 1);
 
   provider.destroy();
+});
+
+test("confirmed block evidence detects a reorganization", async () => {
+  const blockHash =
+    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const receipt = {
+    hash: TX_HASH,
+    status: 1,
+    blockNumber: 200,
+    blockHash
+  };
+
+  const monitor = monitorFor({
+    transaction: anchorTransaction(),
+    receipt,
+    block: {
+      number: 200,
+      hash: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  });
+
+  const result = await monitor.verifyConfirmedTransaction({
+    txHash: TX_HASH,
+    confirmedBlockNumber: 200,
+    confirmedBlockHash: blockHash
+  });
+
+  assert.equal(result.reorged, true);
+  assert.match(result.reason, /canonical evidence/);
+});
+
+test("confirmed block evidence remains valid when receipt and canonical block match", async () => {
+  const blockHash =
+    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const monitor = monitorFor({
+    transaction: anchorTransaction(),
+    receipt: {
+      hash: TX_HASH,
+      status: 1,
+      blockNumber: 201,
+      blockHash
+    },
+    block: {
+      number: 201,
+      hash: blockHash
+    }
+  });
+
+  const result = await monitor.verifyConfirmedTransaction({
+    txHash: TX_HASH,
+    confirmedBlockNumber: 201,
+    confirmedBlockHash: blockHash
+  });
+
+  assert.equal(result.reorged, false);
 });
 
 test("pending receipt is not treated as confirmation", async () => {
