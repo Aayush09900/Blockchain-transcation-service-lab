@@ -357,3 +357,8 @@ The GitHub Pages dashboard is the public project showcase. For an actual interne
 See [docs/RAILWAY-DEPLOYMENT.md](docs/RAILWAY-DEPLOYMENT.md).
 
 OpenAPI specification: [docs/openapi.yaml](docs/openapi.yaml).
+
+
+### Reorganization safety
+
+Confirmed transactions now persist the canonical block number and block hash. The confirmation worker periodically revalidates that evidence against the canonical chain. If the stored block is replaced, the transaction enters `REORGED`, clears the old confirmation evidence, and is revalidated before returning to `CONFIRMED`. A transient receipt read does not by itself trigger a reorg state when the stored block remains canonical.
