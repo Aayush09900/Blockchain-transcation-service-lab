@@ -42,8 +42,8 @@
 - [ ] RPC failover
 - [ ] Nonce management
 - [ ] Fee/gas policy
-- [ ] Chain allowlist
-- [ ] Confirmation-depth policy
+- [x] Chain allowlist via exact configured chain ID
+- [x] Confirmation-depth policy
 - [ ] Reorg handling
 - [x] Receipt verification
 - [x] Broadcast reconciliation from indexed anchor events
