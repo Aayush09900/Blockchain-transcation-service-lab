@@ -23,10 +23,28 @@ Security-focused regression testing for:
 | SEC-05 | Bearer token comparison used ordinary string equality | Low | Fixed |
 | SEC-06 | Health/readiness responses exposed the persistence implementation | Low | Fixed |
 | SEC-07 | Local Docker Compose file contained hardcoded database/API credentials | High | Fixed |
+| SEC-08 | PostgreSQL path bypassed core input validation in the API layer | High | Fixed |
+| SEC-09 | Concurrent idempotency requests could race before insert | High | Fixed |
+| SEC-10 | PostgreSQL submission attempts were not incremented | Medium | Fixed |
+| SEC-11 | CORS preflight could echo an origin when no allowlist was configured | Medium | Fixed |
+| SEC-12 | Production startup allowed missing API/database configuration | High | Fixed |
+| SEC-13 | CI security workflow failed because npm cache required a lockfile that was not present | Medium | Fixed |
 
 ## Configuration secret investigation
 
 The Docker Compose configuration originally contained literal database and API credentials. Those values are now required through environment variables, and the example configuration documents the expected variables without embedding real credentials.
+
+## Production configuration and consistency review
+
+The PostgreSQL-backed API previously validated transaction input differently from the in-memory path. The database path now reuses the same canonical input validator.
+
+Idempotency creation now uses a database uniqueness constraint with INSERT ... ON CONFLICT DO NOTHING followed by a locked read, closing a concurrent-request race.
+
+Submission attempts are incremented inside the PostgreSQL state transition transaction, and transaction-hash mismatches are rejected.
+
+Production configuration now requires API_TOKEN and DATABASE_URL. Production database TLS defaults on unless explicitly disabled.
+
+CORS preflight responses are now disabled unless an explicit CORS allowlist is configured.
 
 ## Path traversal investigation
 
