@@ -32,7 +32,8 @@ const requiredFiles = [
   "test/mongo-audit-store.integration.test.js",
   "test/security-vulnerabilities.test.js",
   ".github/workflows/ci.yml",
-  ".github/workflows/security.yml"
+  ".github/workflows/security.yml",
+  ".github/workflows/publish-image.yml"
 ];
 
 const failures = [];
