@@ -38,10 +38,11 @@ Blockchain ambiguity is a reconciliation state/problem, not an automatic FAILED 
 ## Blockchain requirements
 - Validate configured chain ID.
 - Use ethers.js through an adapter.
+- The service controls blockchain broadcasting through the configured signer.
+- Caller-supplied transaction hashes are rejected by the submission API.
 - A submitted transaction hash is not proof of confirmation.
-- Confirmation requires receipt verification.
-- External transaction hashes, if supported for lab/reconciliation workflows, must be verified against intended transaction data.
-- Broadcast timeouts must support reconciliation.
+- Confirmation requires receipt verification and intent/payload verification.
+- Broadcast timeouts and post-broadcast persistence failures must remain reconcilable.
 
 ## Security
 JWT/bearer authentication, timing-safe credential comparison, validation, CORS allowlisting, secure headers, rate limiting, UUID validation, decimal-string amounts, safe errors, secret protection, dependency scanning, and CodeQL/security automation.

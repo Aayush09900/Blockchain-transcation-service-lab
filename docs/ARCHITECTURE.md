@@ -86,7 +86,7 @@ Receipt monitor worker
 MySQL SUBMITTED -> CONFIRMED/FAILED
 ```
 
-The adapter is isolated in `src/blockchain-adapter.js`.
+The adapter is isolated in `src/blockchain-adapter.js`. The HTTP submission path never accepts a caller-supplied blockchain transaction hash; the configured signer controls the broadcast.
 
 The included Solidity contract is an educational receipt anchor. It stores the transaction identity, sender, receiver and amount and emits an indexed event.
 
@@ -143,7 +143,7 @@ The source-of-truth transaction remains in MySQL. The outbox remains pending and
 
 ### RPC unavailable
 
-Blockchain operations fail without changing the authoritative transaction state to confirmed.
+If a broadcast attempt may have reached the network, the transaction remains `BROADCASTING` rather than being marked `FAILED`. The confirmation worker reconciles mined anchor events before any later lifecycle transition.
 
 ### Worker crash
 

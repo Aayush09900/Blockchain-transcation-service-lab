@@ -14,9 +14,12 @@ Same key + same request -> return original result.
 Same key + different request -> reject with idempotency conflict.
 
 ## Submit
-Load transaction -> validate lifecycle -> lock -> blockchain adapter -> ethers.js/RPC -> receive transaction hash -> persist SUBMITTED -> publish event.
+Load transaction -> idempotent state check -> transition to BROADCASTING -> blockchain adapter -> ethers.js/RPC signer -> receive transaction hash -> persist SUBMITTED -> publish event.
 
-Production execution should obtain the hash from the service's blockchain broadcast operation rather than trusting an arbitrary caller-supplied hash. External hashes may only be accepted through an explicit verified reconciliation/demo path.
+The caller never supplies the transaction hash. A repeated request after BROADCASTING/SUBMITTED/CONFIRMED/FAILED returns the authoritative current state without a second broadcast.
+
+If broadcast or persistence becomes ambiguous after the chain may have accepted the request, leave the record in BROADCASTING and let the reconciliation worker recover it from indexed anchor events.
+
 
 ## Confirmation
 SUBMITTED -> query blockchain receipt -> verify receipt -> persist block/receipt evidence -> CONFIRMED.

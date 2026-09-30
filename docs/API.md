@@ -45,17 +45,19 @@ Transaction IDs are restricted to UUID format.
 
 ## POST /v1/transactions/:id/submit
 
-Body:
+The request body is empty:
 
 ```json
-{
-  "txHash": "0x..."
-}
+{}
 ```
 
-Moves:
+The service controls blockchain submission. It never trusts a caller-supplied transaction hash. The lifecycle is:
 
-`CREATED -> SUBMITTED`
+`CREATED -> BROADCASTING -> SUBMITTED`
+
+The configured blockchain signer broadcasts the anchor transaction and the service persists the returned transaction hash. Repeated calls after execution starts return the existing authoritative state without rebroadcasting.
+
+If the broadcast result is ambiguous, the transaction remains `BROADCASTING`. The confirmation worker searches recent `TransactionAnchored` events, verifies the recovered transaction against the stored intent, and resumes the lifecycle.
 
 ## POST /v1/transactions/:id/confirm
 
@@ -83,13 +85,9 @@ Moves:
 
 ## POST /v1/transactions/:id/anchor
 
-Enabled only when the ethers.js blockchain adapter is configured.
+This endpoint is retained as a compatibility alias for the same service-controlled broadcast operation used by `/submit`.
 
-The service uses the configured signer and calls the on-chain receipt anchor contract.
-
-The operation broadcasts the anchor transaction and returns the transaction hash immediately with HTTP `202`.
-
-The transaction remains `SUBMITTED` until the on-chain receipt can be verified through the confirm endpoint.
+It uses the configured signer, returns HTTP `202` for a new broadcast, and leaves the record in `SUBMITTED` until receipt verification completes.
 
 This is a blockchain audit anchor, not a user-fund transfer endpoint.
 

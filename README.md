@@ -51,6 +51,7 @@ MySQL2 supports pooled connections, prepared statements, Promise APIs and SSL, w
 │   └── repo-health-check.js
 ├── src/
 │   ├── blockchain-adapter.js
+│   ├── blockchain-submission-service.js
 │   ├── config.js
 │   ├── http-errors.js
 │   ├── http-server.js
@@ -68,6 +69,8 @@ MySQL2 supports pooled connections, prepared statements, Promise APIs and SSL, w
 │   ├── mongo-audit-store.integration.test.js
 │   ├── mysql-store.integration.test.js
 │   ├── security-vulnerabilities.test.js
+│   ├── blockchain-adapter.test.js
+│   ├── blockchain-submission-service.test.js
 │   └── transaction-service.test.js
 ├── Dockerfile
 ├── docker-compose.yml
@@ -245,11 +248,15 @@ Content-Type: application/json
 ```
 POST /v1/transactions/:id/submit
 Authorization: Bearer <API_TOKEN>
+Content-Type: application/json
 
-{
-  "txHash": "0x..."
-}
+{}
 ```
+
+The service moves the transaction to `BROADCASTING`, broadcasts the configured on-chain anchor through its signer, then stores the returned transaction hash as `SUBMITTED`. Callers cannot provide an arbitrary transaction hash.
+
+A repeated submit is idempotent: once execution has started, the current authoritative state is returned. If the RPC or database outcome becomes ambiguous after broadcast, the transaction remains `BROADCASTING` and the confirmation worker reconciles it from the indexed on-chain anchor event.
+
 
 ### Confirm
 
