@@ -107,6 +107,8 @@ The worker defaults to a 50-event batch and a 60-second lease. Configure `OUTBOX
 
 For databases created before the lease columns existed, apply `db/mysql/002_outbox_leases.sql` during the deployment migration step before starting multiple outbox workers.
 
+For databases created before canonical confirmation evidence existed, apply `db/mysql/003_confirmation_evidence.sql` before enabling reorg recovery.
+
 
 ### Blockchain confirmation depth
 
