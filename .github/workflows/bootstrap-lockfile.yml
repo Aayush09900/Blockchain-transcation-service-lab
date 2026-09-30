@@ -13,7 +13,6 @@ concurrency:
 
 jobs:
   generate:
-    if: ${{ github.ref == 'refs/heads/main' && hashFiles('package-lock.json') == '' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -28,13 +27,27 @@ jobs:
           node-version: 22.23.3
           package-manager-cache: false
 
+      - name: Check lockfile state
+        id: lockfile
+        shell: bash
+        run: |
+          if [ -s package-lock.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Generate lockfile
+        if: steps.lockfile.outputs.present == 'false'
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
+
       - name: Validate clean install
+        if: steps.lockfile.outputs.present == 'false'
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Commit package-lock.json
+        if: steps.lockfile.outputs.present == 'false'
         shell: bash
         run: |
           set -euo pipefail
