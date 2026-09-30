@@ -1,5 +1,8 @@
 # Application Flow
 
+## Metrics
+GET /metrics -> authentication -> Prometheus exposition output using low-cardinality route/method/status labels.
+
 ## Startup
 Validate environment -> connect MySQL -> initialize MongoDB/audit worker -> initialize blockchain provider when enabled -> start HTTP API.
 
