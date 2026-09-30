@@ -44,7 +44,7 @@
 - [ ] Fee/gas policy
 - [x] Chain allowlist via exact configured chain ID
 - [x] Confirmation-depth policy
-- [ ] Reorg handling
+- [x] Canonical block-hash revalidation and reorg recovery
 - [x] Receipt verification
 - [x] Broadcast reconciliation from indexed anchor events
 
@@ -128,3 +128,8 @@ CHAIN_RPC_URL=https://rpc-a.example
 CHAIN_RPC_URLS=https://rpc-a.example,https://rpc-b.example
 CHAIN_ID=11155111
 ```
+
+
+### Blockchain reorganization handling
+
+Every blockchain confirmation stores the mined block number and block hash in MySQL. The confirmation worker rechecks the canonical block hash for recent `CONFIRMED` transactions. A replaced block moves the transaction to `REORGED`, clears the stale confirmation evidence, and causes the worker to re-verify the stored transaction intent before reconfirming it. The reorg check treats a temporary receipt read failure as indeterminate while the stored block remains canonical, preventing a single unhealthy RPC response from creating a false reorg.
