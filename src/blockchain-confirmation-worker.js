@@ -181,9 +181,11 @@ async function reconcileBatch() {
           }
         } catch (error) {
           if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
+            verificationErrorCount += 1;
             await mysqlStore.transition(transaction.id, "FAILED", {
               failureReason: "blockchain transaction no longer matches the stored intent after reorg"
             });
+            failedCount += 1;
             continue;
           }
 
