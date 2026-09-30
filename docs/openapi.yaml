@@ -212,9 +212,15 @@ components:
           type: string
         status:
           type: string
-          enum: [CREATED, BROADCASTING, SUBMITTED, CONFIRMED, FAILED]
+          enum: [CREATED, BROADCASTING, SUBMITTED, CONFIRMED, REORGED, FAILED]
         txHash:
           type: [string, "null"]
+        confirmedBlockNumber:
+          type: [integer, "null"]
+          minimum: 0
+        confirmedBlockHash:
+          type: [string, "null"]
+          pattern: "^0x[0-9a-fA-F]{64}$"
         failureReason:
           type: [string, "null"]
         attempts:
