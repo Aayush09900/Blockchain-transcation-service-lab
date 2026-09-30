@@ -3,14 +3,14 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: blockchain_transactions
-      POSTGRES_USER: transaction_service
-      POSTGRES_PASSWORD: change-this-password
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./db/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U transaction_service -d blockchain_transactions"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -23,8 +23,9 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      API_TOKEN: change-this-api-token
-      DATABASE_URL: postgresql://transaction_service:change-this-password@postgres:5432/blockchain_transactions
+      API_TOKEN: ${API_TOKEN:?set API_TOKEN in .env}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DB_SSL: "false"
     depends_on:
       postgres:
         condition: service_healthy
