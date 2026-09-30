@@ -1,7 +1,9 @@
 import http from "node:http";
 import { randomUUID } from "node:crypto";
-import { TransactionService } from "./transaction-service.js";
-import { PostgresTransactionStore } from "./postgres-store.js";
+import { parseEther } from "ethers";
+import { MySqlTransactionStore } from "./mysql-store.js";
+import { MongoAuditStore } from "./mongo-audit-store.js";
+import { EthersBlockchainAdapter } from "./blockchain-adapter.js";
 import {
   applySecurityHeaders,
   authenticate,
@@ -19,16 +21,26 @@ const rateLimit = createRateLimiter({
   maxClients: config.rateLimitMaxClients
 });
 
-const memoryService = new TransactionService();
-const postgresStore = config.databaseUrl
-  ? new PostgresTransactionStore({
-      connectionString: config.databaseUrl,
-      maxPoolSize: config.dbPoolMax,
-      ssl: config.dbSsl
+const mysqlStore = new MySqlTransactionStore({
+  url: config.mysqlUrl,
+  maxPoolSize: config.mysqlPoolMax,
+  ssl: config.mysqlSsl
+});
+
+const mongoStore = new MongoAuditStore({
+  url: config.mongoUrl,
+  databaseName: config.mongoDatabase,
+  maxPoolSize: config.mongoMaxPoolSize
+});
+
+const blockchain = config.blockchainEnabled
+  ? EthersBlockchainAdapter.fromConfig({
+      rpcUrl: config.chainRpcUrl,
+      privateKey: config.signerPrivateKey,
+      contractAddress: config.anchorContractAddress,
+      chainId: config.chainId
     })
   : null;
-
-const persistenceMode = postgresStore ? "postgres" : "memory";
 
 function json(response, requestId, statusCode, body, extraHeaders = {}) {
   response.writeHead(statusCode, {
@@ -82,9 +94,7 @@ async function readJson(request) {
 
     return body;
   } catch (error) {
-    if (error?.statusCode) {
-      throw error;
-    }
+    if (error?.statusCode) throw error;
 
     const invalidJson = new Error("invalid JSON");
     invalidJson.statusCode = 400;
@@ -103,34 +113,22 @@ async function createTransaction(body, request) {
     amount: body.amount
   });
 
-  if (!postgresStore) {
-    return memoryService.submit(input);
-  }
-
-  return postgresStore.createOrGet({
+  return mysqlStore.createOrGet({
     id: randomUUID(),
     ...input
   });
 }
 
 async function getTransaction(id) {
-  return postgresStore ? postgresStore.get(id) : memoryService.get(id);
+  return mysqlStore.get(id);
 }
 
 async function transitionTransaction(id, nextStatus, patch = {}) {
-  if (postgresStore) {
-    return postgresStore.transition(id, nextStatus, patch);
-  }
+  return mysqlStore.transition(id, nextStatus, patch);
+}
 
-  if (nextStatus === "SUBMITTED") {
-    return memoryService.markSubmitted(id, patch.txHash);
-  }
-
-  if (nextStatus === "CONFIRMED") {
-    return memoryService.markConfirmed(id);
-  }
-
-  return memoryService.markFailed(id, patch.failureReason);
+async function auditSnapshot(transaction) {
+  await mongoStore.upsertSnapshot(transaction);
 }
 
 const server = http.createServer(async (request, response) => {
@@ -154,8 +152,6 @@ const server = http.createServer(async (request, response) => {
       ? config.corsOrigin
       : ""
   );
-
-  response.setHeader("X-Request-ID", requestId);
 
   if (request.method === "OPTIONS") {
     if (!config.corsOrigin) {
@@ -198,21 +194,24 @@ const server = http.createServer(async (request, response) => {
     const pathname = parsedUrl.pathname;
 
     if (request.method === "GET" && pathname === "/health") {
-      json(response, requestId, 200, { status: "ok" });
+      json(response, requestId, 200, {
+        status: "ok",
+        blockchain: Boolean(blockchain)
+      });
       return;
     }
 
     if (request.method === "GET" && pathname === "/ready") {
-      if (postgresStore) {
-        const healthy = await postgresStore.healthCheck();
+      await mysqlStore.healthCheck();
+      await mongoStore.healthCheck();
 
-        if (!healthy) {
-          json(response, requestId, 503, { status: "not ready" });
-          return;
-        }
+      if (blockchain) {
+        await blockchain.healthCheck(config.chainId);
       }
 
-      json(response, requestId, 200, { status: "ready" });
+      json(response, requestId, 200, {
+        status: "ready"
+      });
       return;
     }
 
@@ -220,8 +219,11 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "POST" && pathname === "/v1/transactions") {
       assertJsonRequest(request);
+
       const body = await readJson(request);
       const transaction = await createTransaction(body, request);
+
+      await auditSnapshot(transaction);
 
       json(response, requestId, 201, transaction);
       return;
@@ -233,12 +235,17 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "POST" && submitMatch) {
       assertJsonRequest(request);
+
       const body = await readJson(request);
       const transaction = await transitionTransaction(
         parseTransactionId(submitMatch[1]),
         "SUBMITTED",
-        { txHash: body.txHash }
+        {
+          txHash: requireNonEmptyString(body.txHash, "txHash", 128)
+        }
       );
+
+      await auditSnapshot(transaction);
 
       json(response, requestId, 200, transaction);
       return;
@@ -254,6 +261,8 @@ const server = http.createServer(async (request, response) => {
         "CONFIRMED"
       );
 
+      await auditSnapshot(transaction);
+
       json(response, requestId, 200, transaction);
       return;
     }
@@ -264,6 +273,7 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "POST" && failMatch) {
       assertJsonRequest(request);
+
       const body = await readJson(request);
       const transaction = await transitionTransaction(
         parseTransactionId(failMatch[1]),
@@ -275,7 +285,47 @@ const server = http.createServer(async (request, response) => {
         }
       );
 
+      await auditSnapshot(transaction);
+
       json(response, requestId, 200, transaction);
+      return;
+    }
+
+    const anchorMatch = pathname.match(
+      /^\/v1\/transactions\/([^/]+)\/anchor$/
+    );
+
+    if (request.method === "POST" && anchorMatch) {
+      if (!blockchain) {
+        const error = new Error("blockchain adapter is disabled");
+        error.code = "BLOCKCHAIN_DISABLED";
+        error.statusCode = 503;
+        throw error;
+      }
+
+      const transaction = await getTransaction(
+        parseTransactionId(anchorMatch[1])
+      );
+
+      const result = await blockchain.anchorTransaction({
+        transactionId: transaction.id,
+        sender: transaction.from,
+        receiver: transaction.to,
+        amountWei: parseEther(transaction.amount)
+      });
+
+      const updated = await transitionTransaction(
+        transaction.id,
+        "SUBMITTED",
+        { txHash: result.txHash }
+      );
+
+      await auditSnapshot(updated);
+
+      json(response, requestId, 200, {
+        transaction: updated,
+        blockchain: result
+      });
       return;
     }
 
@@ -288,6 +338,18 @@ const server = http.createServer(async (request, response) => {
         200,
         await getTransaction(parseTransactionId(match[1]))
       );
+      return;
+    }
+
+    const eventsMatch = pathname.match(
+      /^\/v1\/transactions\/([^/]+)\/events$/
+    );
+
+    if (request.method === "GET" && eventsMatch) {
+      const transactionId = parseTransactionId(eventsMatch[1]);
+      const events = await mongoStore.listEvents(transactionId);
+
+      json(response, requestId, 200, { events });
       return;
     }
 
@@ -314,22 +376,34 @@ server.keepAliveTimeout = 5_000;
 server.headersTimeout = 10_000;
 server.requestTimeout = 15_000;
 
-server.listen(config.port, () => {
-  console.log(JSON.stringify({
-    event: "server_started",
-    port: config.port,
-    persistence: persistenceMode,
-    environment: config.nodeEnv
-  }));
-});
+async function start() {
+  await mongoStore.connect();
+  await mysqlStore.healthCheck();
+
+  if (blockchain) {
+    await blockchain.healthCheck(config.chainId);
+  }
+
+  server.listen(config.port, () => {
+    console.log(JSON.stringify({
+      event: "server_started",
+      port: config.port,
+      database: "mysql",
+      auditStore: "mongodb",
+      blockchain: Boolean(blockchain),
+      environment: config.nodeEnv
+    }));
+  });
+}
 
 async function shutdown(signal) {
   console.log(JSON.stringify({ event: "shutdown_started", signal }));
 
   server.close(async () => {
-    if (postgresStore) {
-      await postgresStore.close();
-    }
+    await Promise.allSettled([
+      mysqlStore.close(),
+      mongoStore.close()
+    ]);
 
     process.exit(0);
   });
@@ -337,5 +411,7 @@ async function shutdown(signal) {
 
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));
+
+await start();
 
 export { server };
