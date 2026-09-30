@@ -228,6 +228,15 @@ GET /health
 GET /ready
 ```
 
+### Metrics
+
+```
+GET /metrics
+Authorization: Bearer <API_TOKEN>
+```
+
+The endpoint returns Prometheus-compatible application metrics. Route labels use normalized templates to avoid transaction-ID cardinality. It is intended for an authenticated scraper or gateway; dashboards and alert rules remain deployment responsibilities.
+
 ### Create transaction
 
 ```
@@ -316,6 +325,8 @@ The application uses layered controls:
 - CI dependency audit
 - Hardhat contract tests
 - Repository secret scanning
+- Authenticated operational metrics
+- Structured worker telemetry and event-lag reporting
 
 Infrastructure firewall rules, TLS certificates, private subnets, managed secrets, backups and alerting must be configured at the deployment platform.
 
