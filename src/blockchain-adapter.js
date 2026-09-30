@@ -530,7 +530,7 @@ export function createRpcProvider({ rpcUrl, rpcUrls, chainId }) {
       uniqueUrls[0],
       chainId ? Number(chainId) : undefined,
       {
-        staticNetwork: chainId ? Number(chainId) : null
+        staticNetwork: chainId ? true : null
       }
     );
   }
