@@ -96,8 +96,10 @@ NODE_ENV=production
 MYSQL_URL=\${{MySQL.MYSQL_URL}}
 MYSQL_SSL=true
 MYSQL_POOL_MAX=10
-CHAIN_RPC_URL=<Ethereum RPC URL>
+CHAIN_RPC_URL=<primary Ethereum RPC URL>
+CHAIN_RPC_URLS=<optional comma-separated backup RPC URLs>
 CHAIN_ID=<network chain id>
+CHAIN_CONFIRMATIONS=1
 CHAIN_CONFIRM_POLL_MS=3000
 CHAIN_CONFIRM_BATCH_SIZE=50
 CHAIN_RECOVERY_LOOKBACK_BLOCKS=20000
@@ -112,8 +114,10 @@ Only enable signing after the runtime, monitoring, and secrets are configured:
 
 ```text
 BLOCKCHAIN_ENABLED=true
-CHAIN_RPC_URL=<Ethereum RPC URL>
+CHAIN_RPC_URL=<primary Ethereum RPC URL>
+CHAIN_RPC_URLS=<optional comma-separated backup RPC URLs>
 CHAIN_ID=<network chain id>
+CHAIN_CONFIRMATIONS=1
 CHAIN_SIGNER_PRIVATE_KEY=<managed secret>
 ANCHOR_CONTRACT_ADDRESS=<deployed contract>
 ```
