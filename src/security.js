@@ -1,19 +1,49 @@
+import { timingSafeEqual } from "node:crypto";
+
 const DEFAULT_WINDOW_MS = 60_000;
 const DEFAULT_MAX_REQUESTS = 60;
+const DEFAULT_MAX_CLIENTS = 10_000;
 
 export function createRateLimiter({
   windowMs = DEFAULT_WINDOW_MS,
-  maxRequests = DEFAULT_MAX_REQUESTS
+  maxRequests = DEFAULT_MAX_REQUESTS,
+  maxClients = DEFAULT_MAX_CLIENTS
 } = {}) {
+  if (!Number.isInteger(maxClients) || maxClients < 1) {
+    throw new Error("maxClients must be a positive integer");
+  }
+
   const clients = new Map();
 
-  return function rateLimit(key) {
+  function prune(now) {
+    for (const [key, value] of clients) {
+      if (now - value.startedAt >= windowMs) {
+        clients.delete(key);
+      }
+    }
+  }
+
+  function evictOldest() {
+    const oldestKey = clients.keys().next().value;
+    if (oldestKey !== undefined) {
+      clients.delete(oldestKey);
+    }
+  }
+
+  const rateLimit = function rateLimit(key) {
+    const normalizedKey = String(key || "unknown");
     const now = Date.now();
-    const current = clients.get(key);
+    const current = clients.get(normalizedKey);
+
+    prune(now);
 
     if (!current || now - current.startedAt >= windowMs) {
-      clients.set(key, { startedAt: now, count: 1 });
-      return { allowed: true, remaining: maxRequests - 1 };
+      if (!current && clients.size >= maxClients) {
+        evictOldest();
+      }
+
+      clients.set(normalizedKey, { startedAt: now, count: 1 });
+      return { allowed: true, remaining: Math.max(0, maxRequests - 1) };
     }
 
     current.count += 1;
@@ -22,12 +52,21 @@ export function createRateLimiter({
       return {
         allowed: false,
         remaining: 0,
-        retryAfterSeconds: Math.ceil((windowMs - (now - current.startedAt)) / 1000)
+        retryAfterSeconds: Math.ceil(
+          (windowMs - (now - current.startedAt)) / 1000
+        )
       };
     }
 
-    return { allowed: true, remaining: maxRequests - current.count };
+    return {
+      allowed: true,
+      remaining: maxRequests - current.count
+    };
   };
+
+  rateLimit.size = () => clients.size;
+
+  return rateLimit;
 }
 
 export function applySecurityHeaders(response, corsOrigin = "") {
@@ -43,15 +82,31 @@ export function applySecurityHeaders(response, corsOrigin = "") {
   }
 }
 
+function tokensEqual(left, right) {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+
+  if (leftBuffer.length !== rightBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(leftBuffer, rightBuffer);
+}
+
 export function authenticate(request, expectedToken) {
   if (!expectedToken) {
     throw new Error("API authentication is not configured");
   }
 
   const header = request.headers.authorization ?? "";
-  const [scheme, token] = header.split(" ");
+  const [scheme, token, extra] = header.split(" ");
 
-  if (scheme !== "Bearer" || !token || token !== expectedToken) {
+  if (
+    scheme !== "Bearer" ||
+    !token ||
+    extra ||
+    !tokensEqual(token, expectedToken)
+  ) {
     const error = new Error("unauthorized");
     error.statusCode = 401;
     throw error;
