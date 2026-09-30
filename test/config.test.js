@@ -1,3 +1,5 @@
+const testPrivateKey = `0x${"11".repeat(32)}`;
+
 import test from "node:test";
 import assert from "node:assert/strict";
 import { loadConfig } from "../src/config.js";
@@ -130,7 +132,7 @@ test("blockchain mode requires a pinned chain ID and secure production RPC", () 
     CHAIN_RPC_URL: "http://rpc.example",
     CHAIN_ID: "11155111",
     ANCHOR_CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000001",
-    CHAIN_SIGNER_PRIVATE_KEY: "0x1111111111111111111111111111111111111111111111111111111111111111"
+    CHAIN_SIGNER_PRIVATE_KEY: testPrivateKey
   };
 
   assert.throws(
