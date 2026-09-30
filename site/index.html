@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Blockchain Transaction Service Lab</title>
+  <meta name="description" content="Production-oriented blockchain transaction service using MySQL, MongoDB, ethers.js and Hardhat.">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div>
+        <span class="eyebrow">WEB3 BACKEND · PRODUCTION-ORIENTED LAB</span>
+        <h1>Blockchain Transaction Service</h1>
+        <p class="lead">Reliable transaction processing with idempotency, MySQL state management, MongoDB audit projection, ethers.js blockchain integration, Hardhat testing, and Dockerized operations.</p>
+        <div class="actions">
+          <a class="button primary" href="https://github.com/Aayush09900/Blockchain-transcation-service-lab">GitHub Repository</a>
+          <a class="button" href="https://github.com/Aayush09900/Blockchain-transcation-service-lab/actions">GitHub Actions</a>
+        </div>
+      </div>
+      <div class="status-card">
+        <span class="status-dot"></span>
+        <div>
+          <strong>GitHub-hosted project</strong>
+          <small>Public repository + CI/CD + Pages dashboard</small>
+        </div>
+      </div>
+    </header>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Architecture</h2>
+        <p>MySQL is the transaction source of truth. A transactional outbox projects audit/read-model events into MongoDB. ethers.js is isolated behind a blockchain adapter.</p>
+        <pre>Client
+  ↓
+Security Edge
+  ↓
+Transaction API
+  ↓
+MySQL + Outbox
+  ↓
+MongoDB Audit
+  ↓
+ethers.js
+  ↓
+Ethereum</pre>
+      </article>
+
+      <article class="card">
+        <h2>Blockchain lifecycle</h2>
+        <p>The on-chain anchor is broadcast without blocking on mining. A separate receipt-monitor worker reconciles the stored transaction hash.</p>
+        <pre>CREATED
+   ↓
+BROADCASTING
+   ↓
+SUBMITTED
+   ↓
+Receipt monitor
+   ├─ CONFIRMED
+   └─ FAILED</pre>
+      </article>
+
+      <article class="card">
+        <h2>Technology stack</h2>
+        <div class="chips">
+          <span>Node.js 22</span>
+          <span>JavaScript</span>
+          <span>Solidity 0.8.28</span>
+          <span>ethers.js 6</span>
+          <span>Hardhat 3</span>
+          <span>MySQL 8.4</span>
+          <span>MongoDB 8</span>
+          <span>Docker</span>
+          <span>GitHub Actions</span>
+          <span>GHCR</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2>Operational controls</h2>
+        <ul>
+          <li>Idempotency enforced in MySQL</li>
+          <li>Transactional outbox with retries/dead-lettering</li>
+          <li>Receipt-based confirmation</li>
+          <li>Security boundary, auth, CORS and rate limiting</li>
+          <li>Hardhat contract integration tests</li>
+          <li>Container build and supply-chain attestation workflow</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="card">
+      <h2>Documentation</h2>
+      <div class="links">
+        <a href="https://github.com/Aayush09900/Blockchain-transcation-service-lab/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+        <a href="https://github.com/Aayush09900/Blockchain-transcation-service-lab/blob/main/docs/API.md">API</a>
+        <a href="https://github.com/Aayush09900/Blockchain-transcation-service-lab/blob/main/docs/OPERATIONS.md">Operations</a>
+        <a href="https://github.com/Aayush09900/Blockchain-transcation-service-lab/blob/main/docs/SECURITY-ARCHITECTURE.md">Security</a>
+        <a href="https://github.com/Aayush09900/Blockchain-transcation-service-lab/blob/main/SECURITY-TEST-REPORT.md">Security Test Report</a>
+      </div>
+    </section>
+
+    <footer>
+      <span>Aayush09900 · Blockchain-transcation-service-lab</span>
+      <span>GitHub Pages is the public showcase; the API requires a separate runtime deployment.</span>
+    </footer>
+  </main>
+</body>
+</html>

@@ -307,3 +307,12 @@ The repository is now structured as a production-oriented transaction service, b
 - independent security review
 
 Do not connect this lab to real funds until these controls are implemented and reviewed.
+
+
+## Live project dashboard
+
+The project now includes a GitHub Pages dashboard with the architecture, technology stack, deployment notes, and repository links.
+
+**Live dashboard:** https://aayush09900.github.io/Blockchain-transcation-service-lab/
+
+The backend itself is containerized and published through GitHub Actions/GHCR when the production CI gate succeeds. GitHub Pages is the public project showcase; it is not the API runtime.
