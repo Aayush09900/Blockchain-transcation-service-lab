@@ -22,6 +22,7 @@ const requiredFiles = [
   "src/mongo-audit-store.js",
   "src/blockchain-adapter.js",
   "src/outbox-worker.js",
+  "src/blockchain-confirmation-worker.js",
   "hardhat.config.js",
   "contracts/TransactionReceiptAnchor.sol",
   "hardhat-tests/TransactionReceiptAnchor.test.js",
@@ -52,7 +53,7 @@ const packageJsonPath = path.join(root, "package.json");
 if (exists("package.json")) {
   const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
 
-  for (const script of ["test", "start", "start:core"]) {
+  for (const script of ["test", "start", "start:core", "start:outbox", "start:confirm-worker"]) {
     if (!pkg.scripts?.[script]) {
       failures.push(`missing npm script: ${script}`);
     }
