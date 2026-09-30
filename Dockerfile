@@ -7,7 +7,8 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
+RUN npm install --global npm@11.20.0 --ignore-scripts --no-audit --no-fund \
+    && npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
     && npm cache clean --force
 
 COPY src ./src
