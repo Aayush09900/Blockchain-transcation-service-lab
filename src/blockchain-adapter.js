@@ -82,6 +82,71 @@ export class EthersBlockchainAdapter {
     return true;
   }
 
+  async prepareSignedTransfer({ sender, receiver, amountWei, chainId }) {
+    const normalizedSender = getAddress(sender);
+    const normalizedReceiver = getAddress(receiver);
+    const signerAddress = getAddress(await this.signer.getAddress());
+
+    if (signerAddress !== normalizedSender) {
+      const error = new Error("transaction sender does not match the configured service signer");
+      error.code = "BLOCKCHAIN_SENDER_MISMATCH";
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const network = await this.provider.getNetwork();
+    const effectiveChainId = chainId ?? network.chainId;
+
+    if (network.chainId !== BigInt(effectiveChainId)) {
+      throw blockchainVerificationError("configured chain id does not match RPC chain");
+    }
+
+    const request = await this.signer.populateTransaction({
+      to: normalizedReceiver,
+      value: BigInt(amountWei),
+      data: "0x",
+      chainId: BigInt(effectiveChainId)
+    });
+
+    const serializedTransaction = await this.signer.signTransaction(request);
+    const parsed = Transaction.from(serializedTransaction);
+
+    return {
+      serializedTransaction,
+      txHash: parsed.hash,
+      chainId: parsed.chainId.toString()
+    };
+  }
+
+  async broadcastSignedTransaction({ serializedTransaction, expectedTxHash }) {
+    const parsed = Transaction.from(serializedTransaction);
+
+    if (!parsed.hash) {
+      throw blockchainVerificationError("signed transaction hash is unavailable");
+    }
+
+    if (
+      expectedTxHash &&
+      parsed.hash.toLowerCase() !== expectedTxHash.toLowerCase()
+    ) {
+      throw blockchainVerificationError("signed transaction hash mismatch");
+    }
+
+    const response = await this.provider.broadcastTransaction(serializedTransaction);
+
+    if (response.hash.toLowerCase() !== parsed.hash.toLowerCase()) {
+      const error = new Error("RPC returned an unexpected transaction hash");
+      error.code = "BLOCKCHAIN_BROADCAST_HASH_MISMATCH";
+      error.statusCode = 502;
+      throw error;
+    }
+
+    return {
+      txHash: response.hash,
+      chainId: (await this.provider.getNetwork()).chainId.toString()
+    };
+  }
+
   async broadcastAnchorTransaction({
     transactionId,
     sender,
