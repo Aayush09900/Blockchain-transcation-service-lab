@@ -48,25 +48,25 @@ async function publishBatch() {
 
       for (const event of events) {
         try {
-        const payload = JSON.parse(event.payload);
+          const payload = JSON.parse(event.payload);
 
-        await mongoStore.appendEvent({
-          eventId: event.event_id,
-          transactionId: event.transaction_id,
-          eventType: event.event_type,
-          payload,
-          occurredAt: event.created_at
-        });
+          await mongoStore.appendEvent({
+            eventId: event.event_id,
+            transactionId: event.transaction_id,
+            eventType: event.event_type,
+            payload,
+            occurredAt: event.created_at
+          });
 
-        const transaction = await mysqlStore.get(event.transaction_id);
-        await mongoStore.upsertSnapshot(transaction);
+          const transaction = await mysqlStore.get(event.transaction_id);
+          await mongoStore.upsertSnapshot(transaction);
 
-        await mysqlStore.markOutboxPublished(event.id);
-      } catch (error) {
-        await mysqlStore.markOutboxFailed(
-          event.id,
-          sanitizeError(error)
-        );
+          await mysqlStore.markOutboxPublished(event.id);
+        } catch (error) {
+          await mysqlStore.markOutboxFailed(
+            event.id,
+            sanitizeError(error)
+          );
         }
       }
     } finally {
