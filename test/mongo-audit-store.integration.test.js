@@ -37,8 +37,8 @@ test(
 
       await store.upsertSnapshot({
         id: transactionId,
-        from: "0xsender",
-        to: "0xreceiver",
+        from: "0x0000000000000000000000000000000000000001",
+        to: "0x0000000000000000000000000000000000000002",
         amount: "1",
         status: "CREATED",
         txHash: null,
