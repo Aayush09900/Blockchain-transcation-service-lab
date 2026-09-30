@@ -249,12 +249,37 @@ const server = http.createServer(async (request, response) => {
     );
 
     if (request.method === "POST" && confirmMatch) {
-      const transaction = await transitionTransaction(
-        parseTransactionId(confirmMatch[1]),
+      const transactionId = parseTransactionId(confirmMatch[1]);
+      const transaction = await getTransaction(transactionId);
+
+      if (blockchain && transaction.txHash) {
+        const receipt = await blockchain.getTransactionReceipt(transaction.txHash);
+
+        if (!receipt) {
+          const error = new Error("blockchain transaction is not confirmed yet");
+          error.code = "NOT_CONFIRMED";
+          error.statusCode = 409;
+          throw error;
+        }
+
+        if (receipt.status !== 1) {
+          await transitionTransaction(transactionId, "FAILED", {
+            failureReason: "blockchain transaction reverted"
+          });
+
+          const error = new Error("blockchain transaction reverted");
+          error.code = "BLOCKCHAIN_REVERTED";
+          error.statusCode = 409;
+          throw error;
+        }
+      }
+
+      const confirmed = await transitionTransaction(
+        transactionId,
         "CONFIRMED"
       );
 
-      json(response, requestId, 200, transaction);
+      json(response, requestId, 200, confirmed);
       return;
     }
 
@@ -311,7 +336,7 @@ const server = http.createServer(async (request, response) => {
       );
 
       try {
-        const result = await blockchain.anchorTransaction({
+        const result = await blockchain.broadcastAnchorTransaction({
           transactionId: broadcasting.id,
           sender: broadcasting.from,
           receiver: broadcasting.to,
@@ -324,9 +349,10 @@ const server = http.createServer(async (request, response) => {
           { txHash: result.txHash }
         );
 
-        json(response, requestId, 200, {
+        json(response, requestId, 202, {
           transaction: updated,
-          blockchain: result
+          blockchain: result,
+          nextStep: `POST /v1/transactions/${broadcasting.id}/confirm after the transaction is mined`
         });
         return;
       } catch (blockchainError) {
