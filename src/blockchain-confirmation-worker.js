@@ -59,91 +59,91 @@ async function reconcileBatch() {
   if (processing) return;
 
   processing = true;
+  inFlight = (async () => {
+    try {
+      const broadcasting = await mysqlStore.listBroadcasting(batchSize);
 
-  try {
-    const broadcasting = await mysqlStore.listBroadcasting(batchSize);
-
-    for (const transaction of broadcasting) {
-      try {
-        const recovered = await chain.findAnchorTransaction({
-          transactionId: transaction.id,
-          contractAddress: anchorContractAddress,
-          lookbackBlocks: recoveryLookbackBlocks
-        });
-
-        if (!recovered) {
-          continue;
-        }
-
-        const verification = await chain.verifySubmittedTransaction({
-          transactionId: transaction.id,
-          sender: transaction.from,
-          receiver: transaction.to,
-          amountWei: amountToWei(transaction.amount),
-          txHash: recovered.txHash,
-          anchorContractAddress
-        });
-
-        if (verification.confirmed) {
-          await mysqlStore.transition(transaction.id, "SUBMITTED", {
-            txHash: recovered.txHash
+      for (const transaction of broadcasting) {
+        try {
+          const recovered = await chain.findAnchorTransaction({
+            transactionId: transaction.id,
+            contractAddress: anchorContractAddress,
+            lookbackBlocks: recoveryLookbackBlocks
           });
-        }
-      } catch (error) {
-        if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
-          await mysqlStore.transition(transaction.id, "FAILED", {
-            failureReason: "broadcast recovery verification failed"
+
+          if (!recovered) {
+            continue;
+          }
+
+          const verification = await chain.verifySubmittedTransaction({
+            transactionId: transaction.id,
+            sender: transaction.from,
+            receiver: transaction.to,
+            amountWei: amountToWei(transaction.amount),
+            txHash: recovered.txHash,
+            anchorContractAddress
           });
-          continue;
-        }
 
-        console.error(JSON.stringify({
-          event: "blockchain_broadcast_recovery_error",
-          transactionId: transaction.id,
-          message: sanitizeError(error)
-        }));
-      }
-    }
-
-    const transactions = await mysqlStore.listSubmitted(batchSize);
-
-    for (const transaction of transactions) {
-      try {
-        const verification = await chain.verifySubmittedTransaction({
-          transactionId: transaction.id,
-          sender: transaction.from,
-          receiver: transaction.to,
-          amountWei: amountToWei(transaction.amount),
-          txHash: transaction.txHash,
-          anchorContractAddress
-        });
-
-        if (!verification.confirmed) {
-          if (verification.reverted) {
-            await mysqlStore.transition(transaction.id, "FAILED", {
-              failureReason: "blockchain transaction reverted"
+          if (verification.confirmed) {
+            await mysqlStore.transition(transaction.id, "SUBMITTED", {
+              txHash: recovered.txHash
             });
           }
-          continue;
-        }
+        } catch (error) {
+          if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
+            await mysqlStore.transition(transaction.id, "FAILED", {
+              failureReason: "broadcast recovery verification failed"
+            });
+            continue;
+          }
 
-        await mysqlStore.transition(transaction.id, "CONFIRMED");
-      } catch (error) {
-        if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
-          await mysqlStore.transition(transaction.id, "FAILED", {
-            failureReason: "blockchain transaction verification failed"
-          });
-          continue;
+          console.error(JSON.stringify({
+            event: "blockchain_broadcast_recovery_error",
+            transactionId: transaction.id,
+            message: sanitizeError(error)
+          }));
         }
-
-        console.error(JSON.stringify({
-          event: "blockchain_confirmation_error",
-          transactionId: transaction.id,
-          txHash: transaction.txHash,
-          message: sanitizeError(error)
-        }));
       }
-    }
+
+      const transactions = await mysqlStore.listSubmitted(batchSize);
+
+      for (const transaction of transactions) {
+        try {
+          const verification = await chain.verifySubmittedTransaction({
+            transactionId: transaction.id,
+            sender: transaction.from,
+            receiver: transaction.to,
+            amountWei: amountToWei(transaction.amount),
+            txHash: transaction.txHash,
+            anchorContractAddress
+          });
+
+          if (!verification.confirmed) {
+            if (verification.reverted) {
+              await mysqlStore.transition(transaction.id, "FAILED", {
+                failureReason: "blockchain transaction reverted"
+              });
+            }
+            continue;
+          }
+
+          await mysqlStore.transition(transaction.id, "CONFIRMED");
+        } catch (error) {
+          if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
+            await mysqlStore.transition(transaction.id, "FAILED", {
+              failureReason: "blockchain transaction verification failed"
+            });
+            continue;
+          }
+
+          console.error(JSON.stringify({
+            event: "blockchain_confirmation_error",
+            transactionId: transaction.id,
+            txHash: transaction.txHash,
+            message: sanitizeError(error)
+          }));
+        }
+      }
     } finally {
       inFlight = null;
       processing = false;
@@ -175,6 +175,15 @@ async function shutdown(signal) {
     event: "blockchain_confirmation_worker_shutdown",
     signal
   }));
+
+  if (inFlight) {
+    await inFlight.catch((error) => {
+      console.error(JSON.stringify({
+        event: "blockchain_confirmation_worker_shutdown_error",
+        message: sanitizeError(error)
+      }));
+    });
+  }
 
   await mysqlStore.close();
 }
