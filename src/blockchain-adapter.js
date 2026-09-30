@@ -512,6 +512,77 @@ export function validateTransactionHash(hash) {
   return hash;
 }
 
+export function validateSignedTransactionIntent({
+  serializedTransaction,
+  sender,
+  receiver,
+  amountWei,
+  expectedChainId
+}) {
+  if (
+    typeof serializedTransaction !== "string" ||
+    !/^0x[0-9a-fA-F]+$/.test(serializedTransaction) ||
+    serializedTransaction.length < 10 ||
+    serializedTransaction.length > 32_768
+  ) {
+    const error = new Error("signedTransaction must be a valid serialized transaction");
+    error.code = "VALIDATION_ERROR";
+    error.statusCode = 400;
+    throw error;
+  }
+
+  let parsed;
+
+  try {
+    parsed = Transaction.from(serializedTransaction);
+  } catch {
+    const error = new Error("signedTransaction could not be decoded");
+    error.code = "VALIDATION_ERROR";
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!parsed.signature || !parsed.from) {
+    const error = new Error("signedTransaction must contain a valid signature");
+    error.code = "VALIDATION_ERROR";
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!parsed.to) {
+    throw blockchainVerificationError("signedTransaction has no destination");
+  }
+
+  if (getAddress(parsed.from) !== getAddress(sender)) {
+    throw blockchainVerificationError("signedTransaction sender does not match transaction");
+  }
+
+  if (getAddress(parsed.to) !== getAddress(receiver)) {
+    throw blockchainVerificationError("signedTransaction receiver does not match transaction");
+  }
+
+  if (BigInt(parsed.value) !== BigInt(amountWei)) {
+    throw blockchainVerificationError("signedTransaction amount does not match transaction");
+  }
+
+  if (parsed.data !== "0x") {
+    throw blockchainVerificationError("signedTransaction data must be empty for a native transfer");
+  }
+
+  if (
+    expectedChainId !== undefined &&
+    parsed.chainId !== BigInt(expectedChainId)
+  ) {
+    throw blockchainVerificationError("signedTransaction chain id does not match configured chain");
+  }
+
+  return {
+    transaction: parsed,
+    txHash: parsed.hash,
+    serializedTransaction
+  };
+}
+
 function blockchainVerificationError(message) {
   const error = new Error(message);
   error.code = "BLOCKCHAIN_VERIFICATION_FAILED";
