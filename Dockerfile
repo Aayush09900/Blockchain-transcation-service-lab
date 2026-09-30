@@ -1,4 +1,4 @@
-FROM node:22.23.3-alpine
+FROM node:26.10.0-alpine
 
 ENV NODE_ENV=production
 ENV PORT=3000
