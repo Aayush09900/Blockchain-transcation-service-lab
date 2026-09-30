@@ -26,6 +26,7 @@ Blockchain operations are asynchronous and can encounter duplicate requests, RPC
 
 ## Lifecycle
 CREATED -> BROADCASTING -> SUBMITTED -> CONFIRMED
+CONFIRMED -> REORGED -> SUBMITTED -> CONFIRMED
 CREATED -> FAILED
 CREATED -> BROADCASTING -> FAILED
 SUBMITTED -> FAILED
@@ -35,6 +36,7 @@ Ambiguous blockchain/RPC outcomes must be reconciled rather than automatically t
 ## API
 - GET /health
 - GET /ready
+- GET /metrics (authenticated Prometheus exposition)
 - POST /v1/transactions
 - POST /v1/transactions/:id/submit
 - POST /v1/transactions/:id/confirm
@@ -50,6 +52,7 @@ Ambiguous blockchain/RPC outcomes must be reconciled rather than automatically t
 - Secrets must never be committed or persisted.
 - APIs require validation, authentication, authorization, rate limiting, secure headers, and safe errors.
 - Correlation must connect requestId, transactionId, eventId, and txHash.
+- Metrics must use normalized route and bounded categorical labels rather than transaction identifiers.
 - CI must run tests, build, and security checks.
 
 ## Out of scope
