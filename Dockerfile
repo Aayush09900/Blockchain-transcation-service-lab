@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:22.23.3-alpine
 
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -7,7 +7,9 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm install --global npm@11.20.0 --ignore-scripts --no-audit --no-fund \
+RUN npm install --global npm@12.1.0 --ignore-scripts --no-audit --no-fund \
+    && NPM_ROOT="$(npm root --global)/npm" \
+    && npm install --prefix "$NPM_ROOT" --no-save --ignore-scripts --no-audit --no-fund brace-expansion@5.0.10 undici@6.28.1 \
     && npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
     && npm cache clean --force
 
