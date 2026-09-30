@@ -55,6 +55,10 @@ export function loadConfig(env = process.env) {
 
   const mysqlSsl = booleanValue(env.MYSQL_SSL, production);
   const mongoTls = booleanValue(env.MONGO_TLS, production);
+  const allowManualBlockchainState = booleanValue(
+    env.ALLOW_MANUAL_BLOCKCHAIN_STATE,
+    !production
+  );
 
   if (production && apiToken.length < 32) {
     throw configError("API_TOKEN must contain at least 32 characters in production");
@@ -149,6 +153,7 @@ export function loadConfig(env = process.env) {
       20
     ),
     blockchainEnabled,
+    allowManualBlockchainState,
     chainRpcUrl,
     chainId,
     anchorContractAddress,
