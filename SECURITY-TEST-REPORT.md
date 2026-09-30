@@ -51,6 +51,17 @@ The repository was re-checked across:
 | SEC-26 | Submission endpoint trusted a caller-supplied transaction hash | High | Submission now uses the service-controlled blockchain adapter/signer; arbitrary txHash input is rejected |
 | SEC-27 | Broadcast/RPC or post-broadcast persistence ambiguity could be converted into FAILED | High | Transaction remains BROADCASTING until reconciliation recovers and verifies the on-chain anchor |
 | SEC-28 | Concurrent submit/claim errors could be reported as blockchain broadcast ambiguity | Medium | Broadcast-ambiguity wrapping is now limited to actual broadcast and post-broadcast persistence failures; initial BROADCASTING claim errors propagate unchanged |
+| SEC-29 | Operational telemetry could create high-cardinality or unauthenticated metric output | Medium | Added authenticated Prometheus-format metrics with normalized route labels, bounded outcome labels, and structured worker telemetry without transaction IDs as metric labels |
+
+## Current observability controls
+
+- Authenticated `/metrics` endpoint.
+- Low-cardinality request counters and latency histogram.
+- Broadcast and verification outcome counters.
+- Outbox event lag and publish/failure telemetry.
+- Confirmation recovery, pending, failure, and RPC-error telemetry.
+- Worker heartbeats for liveness visibility.
+- Logs sanitized through the centralized redaction utility.
 
 ## Current architecture
 
