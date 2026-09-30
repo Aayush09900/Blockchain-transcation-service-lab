@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS transactions (
   amount DECIMAL(65, 18) NOT NULL,
   status ENUM('CREATED', 'BROADCASTING', 'SUBMITTED', 'CONFIRMED', 'FAILED') NOT NULL,
   tx_hash CHAR(66) NULL,
+  confirmed_block_number BIGINT UNSIGNED NULL,
+  confirmed_block_hash CHAR(66) NULL,
   failure_reason VARCHAR(500) NULL,
   attempts INT UNSIGNED NOT NULL DEFAULT 0,
   created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
