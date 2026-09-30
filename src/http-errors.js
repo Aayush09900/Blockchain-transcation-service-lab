@@ -7,6 +7,14 @@ export function toPublicHttpError(error) {
     return { statusCode: 409, message: "idempotency conflict" };
   }
 
+  if (error?.code === "IDEMPOTENCY_KEY_MISMATCH") {
+    return { statusCode: 400, message: "idempotency key mismatch" };
+  }
+
+  if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
+    return { statusCode: 409, message: "blockchain transaction verification failed" };
+  }
+
   if (error?.code === "INVALID_TRANSITION") {
     return { statusCode: 409, message: "invalid transaction state transition" };
   }
