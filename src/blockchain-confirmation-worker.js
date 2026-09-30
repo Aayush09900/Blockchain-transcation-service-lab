@@ -107,6 +107,67 @@ async function reconcileBatch() {
         }
       }
 
+      const confirmedTransactions = await mysqlStore.listConfirmed(batchSize);
+
+      for (const transaction of confirmedTransactions) {
+        try {
+          const evidence = await chain.verifyConfirmedTransaction({
+            txHash: transaction.txHash,
+            confirmedBlockNumber: transaction.confirmedBlockNumber,
+            confirmedBlockHash: transaction.confirmedBlockHash
+          });
+
+          if (evidence.reorged) {
+            await mysqlStore.transition(transaction.id, "REORGED", {
+              failureReason: evidence.reason
+            });
+          }
+        } catch (error) {
+          console.error(JSON.stringify({
+            event: "blockchain_reorg_check_error",
+            transactionId: transaction.id,
+            txHash: transaction.txHash,
+            message: sanitizeError(error)
+          }));
+        }
+      }
+
+      const reorgedTransactions = await mysqlStore.listReorged(batchSize);
+
+      for (const transaction of reorgedTransactions) {
+        try {
+          const verification = await chain.verifySubmittedTransaction({
+            transactionId: transaction.id,
+            sender: transaction.from,
+            receiver: transaction.to,
+            amountWei: amountToWei(transaction.amount),
+            txHash: transaction.txHash,
+            anchorContractAddress
+          });
+
+          if (verification.confirmed) {
+            await mysqlStore.transition(transaction.id, "CONFIRMED", {
+              confirmedBlockNumber: verification.receipt.blockNumber,
+              confirmedBlockHash: verification.receipt.blockHash
+            });
+          }
+        } catch (error) {
+          if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
+            await mysqlStore.transition(transaction.id, "FAILED", {
+              failureReason: "blockchain transaction no longer matches the stored intent after reorg"
+            });
+            continue;
+          }
+
+          console.error(JSON.stringify({
+            event: "blockchain_reorg_recovery_error",
+            transactionId: transaction.id,
+            txHash: transaction.txHash,
+            message: sanitizeError(error)
+          }));
+        }
+      }
+
       const transactions = await mysqlStore.listSubmitted(batchSize);
 
       for (const transaction of transactions) {
