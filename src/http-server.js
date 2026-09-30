@@ -11,7 +11,11 @@ import {
 } from "./security.js";
 import { parseTransactionId } from "./path-security.js";
 import { toPublicHttpError } from "./http-errors.js";
-import { validateTransactionInput, validateTransactionHash, requireNonEmptyString } from "./validation.js";
+import {
+  requireNonEmptyString,
+  validateTransactionHash,
+  validateTransactionInput
+} from "./validation.js";
 import { loadConfig } from "./config.js";
 
 const config = loadConfig();
@@ -233,9 +237,7 @@ const server = http.createServer(async (request, response) => {
       const transaction = await transitionTransaction(
         parseTransactionId(submitMatch[1]),
         "SUBMITTED",
-        {
-          txHash: requireNonEmptyString(body.txHash, "txHash", 128)
-        }
+        { txHash: validateTransactionHash(body.txHash) }
       );
 
       json(response, requestId, 200, transaction);
@@ -294,26 +296,53 @@ const server = http.createServer(async (request, response) => {
         parseTransactionId(anchorMatch[1])
       );
 
-      const result = await blockchain.anchorTransaction({
-        transactionId: transaction.id,
-        sender: transaction.from,
-        receiver: transaction.to,
-        amountWei: parseEther(transaction.amount)
-      });
+      if (transaction.status !== "CREATED") {
+        const error = new Error(
+          `transaction cannot be anchored from status ${transaction.status}`
+        );
+        error.code = "INVALID_TRANSITION";
+        error.statusCode = 409;
+        throw error;
+      }
 
-      const updated = await transitionTransaction(
+      const broadcasting = await transitionTransaction(
         transaction.id,
-        "SUBMITTED",
-        { txHash: result.txHash }
+        "BROADCASTING"
       );
 
-      await auditSnapshot(updated);
+      try {
+        const result = await blockchain.anchorTransaction({
+          transactionId: broadcasting.id,
+          sender: broadcasting.from,
+          receiver: broadcasting.to,
+          amountWei: parseEther(broadcasting.amount)
+        });
 
-      json(response, requestId, 200, {
-        transaction: updated,
-        blockchain: result
-      });
-      return;
+        const updated = await transitionTransaction(
+          broadcasting.id,
+          "SUBMITTED",
+          { txHash: result.txHash }
+        );
+
+        json(response, requestId, 200, {
+          transaction: updated,
+          blockchain: result
+        });
+        return;
+      } catch (blockchainError) {
+        await transitionTransaction(
+          broadcasting.id,
+          "FAILED",
+          {
+            failureReason:
+              blockchainError instanceof Error
+                ? blockchainError.message
+                : String(blockchainError)
+          }
+        );
+
+        throw blockchainError;
+      }
     }
 
     const match = pathname.match(/^\/v1\/transactions\/([^/]+)$/);
