@@ -8,8 +8,14 @@ import {
   getAddress,
   getBytes,
   id,
-  isAddress
+  isAddress,
+  parseUnits
 } from "ethers";
+import {
+  buildTransactionOverrides,
+  parseOptionalGasLimit,
+  parseOptionalGwei
+} from "./blockchain-fee-policy.js";
 
 const ABI = [
   "function anchor(bytes32 transactionId, address sender, address receiver, uint256 amount)",
@@ -24,7 +30,10 @@ export class EthersBlockchainAdapter {
     provider,
     signer,
     contractAddress,
-    confirmationDepth = 1
+    confirmationDepth = 1,
+    gasLimit = null,
+    maxFeePerGas = null,
+    maxPriorityFeePerGas = null
   }) {
     if (!provider) {
       throw new Error("ethers provider is required");
@@ -52,6 +61,17 @@ export class EthersBlockchainAdapter {
     this.signer =
       signer instanceof NonceManager ? signer : new NonceManager(signer);
     this.confirmationDepth = normalizedConfirmationDepth;
+    this.gasLimit =
+      gasLimit === null || gasLimit === undefined
+        ? null
+        : BigInt(gasLimit);
+    this.maxFeePerGas = maxFeePerGas;
+    this.maxPriorityFeePerGas = maxPriorityFeePerGas;
+    this.transactionOverrides = buildTransactionOverrides({
+      gasLimit: this.gasLimit,
+      maxFeePerGas: this.maxFeePerGas,
+      maxPriorityFeePerGas: this.maxPriorityFeePerGas
+    });
     this.contractAddress = getAddress(contractAddress);
     this.contract = new Contract(this.contractAddress, ABI, this.signer);
   }
@@ -62,7 +82,16 @@ export class EthersBlockchainAdapter {
     privateKey = process.env.CHAIN_SIGNER_PRIVATE_KEY,
     contractAddress = process.env.ANCHOR_CONTRACT_ADDRESS,
     chainId,
-    confirmationDepth = process.env.CHAIN_CONFIRMATIONS ?? "1"
+    confirmationDepth = process.env.CHAIN_CONFIRMATIONS ?? "1",
+    gasLimit = parseOptionalGasLimit(process.env.CHAIN_GAS_LIMIT),
+    maxFeePerGas = parseOptionalGwei(
+      process.env.CHAIN_MAX_FEE_GWEI,
+      "CHAIN_MAX_FEE_GWEI"
+    ),
+    maxPriorityFeePerGas = parseOptionalGwei(
+      process.env.CHAIN_MAX_PRIORITY_FEE_GWEI,
+      "CHAIN_MAX_PRIORITY_FEE_GWEI"
+    )
   } = {}) {
     if (!privateKey || !contractAddress) {
       throw new Error(
@@ -82,7 +111,10 @@ export class EthersBlockchainAdapter {
       provider,
       signer,
       contractAddress,
-      confirmationDepth
+      confirmationDepth,
+      gasLimit,
+      maxFeePerGas,
+      maxPriorityFeePerGas
     });
   }
 
@@ -113,7 +145,8 @@ export class EthersBlockchainAdapter {
       bytes32Id,
       sender,
       receiver,
-      BigInt(amountWei)
+      BigInt(amountWei),
+      this.transactionOverrides
     );
 
     return {
