@@ -188,3 +188,64 @@ test("monitor uses fallback RPC provider when multiple endpoints are configured"
 
   assert.equal(monitor.provider.constructor.name, "FallbackProvider");
 });
+
+
+test("health check rejects any configured RPC endpoint on the wrong chain", async () => {
+  const adapter = new EthersBlockchainAdapter({
+    provider: {},
+    providers: [
+      { async getNetwork() { return { chainId: 11155111n }; } },
+      { async getNetwork() { return { chainId: 1n }; } }
+    ],
+    signer: { provider: null },
+    contractAddress: CONTRACT
+  });
+
+  await assert.rejects(
+    adapter.healthCheck(11155111),
+    /configured RPC endpoint chain mismatch/
+  );
+});
+
+test("health check tolerates a down backup while a valid RPC remains", async () => {
+  const monitor = new EthersReceiptMonitor({
+    provider: {},
+    providers: [
+      {
+        async getNetwork() {
+          return { chainId: 11155111n };
+        }
+      },
+      {
+        async getNetwork() {
+          throw new Error("backup unavailable");
+        }
+      }
+    ]
+  });
+
+  await assert.doesNotReject(() => monitor.healthCheck(11155111));
+});
+
+test("health check fails when every configured RPC endpoint is unavailable", async () => {
+  const monitor = new EthersReceiptMonitor({
+    provider: {},
+    providers: [
+      {
+        async getNetwork() {
+          throw new Error("primary unavailable");
+        }
+      },
+      {
+        async getNetwork() {
+          throw new Error("backup unavailable");
+        }
+      }
+    ]
+  });
+
+  await assert.rejects(
+    monitor.healthCheck(11155111),
+    /all configured blockchain RPC endpoints are unavailable/
+  );
+});
