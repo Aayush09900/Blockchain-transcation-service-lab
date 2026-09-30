@@ -30,9 +30,8 @@ The reference devcontainer firewall is not copied into the runtime. This service
 
 ## Remaining transaction-service security work
 
-- service-controlled blockchain broadcast
+- full service-controlled blockchain broadcast policy and signer isolation
 - reconciliation after ambiguous RPC results
-- atomic/leased outbox claims
 - RPC failover and nonce coordination
 - reorg handling
 - distributed rate limiting
