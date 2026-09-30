@@ -46,6 +46,13 @@ export function toPublicHttpError(error) {
     };
   }
 
+  if (error?.code === "SUBMIT_BODY_NOT_ALLOWED") {
+    return {
+      statusCode: 400,
+      message: "submit request body must be empty"
+    };
+  }
+
   if (error?.code === "VALIDATION_ERROR") {
     return { statusCode: 400, message: error.message };
   }
