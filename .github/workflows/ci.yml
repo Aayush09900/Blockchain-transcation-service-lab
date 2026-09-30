@@ -16,34 +16,47 @@ concurrency:
 
 jobs:
   test:
-    name: Node.js tests
+    name: Application and blockchain tests
     runs-on: ubuntu-latest
 
     services:
-      postgres:
-        image: postgres:17-alpine
+      mysql:
+        image: mysql:8.4
         env:
-          POSTGRES_DB: blockchain_transactions
-          POSTGRES_USER: transaction_service
-          POSTGRES_PASSWORD: postgres
+          MYSQL_DATABASE: blockchain_transactions
+          MYSQL_USER: transaction_service
+          MYSQL_PASSWORD: postgres
+          MYSQL_ROOT_PASSWORD: root
         ports:
-          - 5432:5432
+          - 3306:3306
         options: >-
-          --health-cmd "pg_isready -U transaction_service -d blockchain_transactions"
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -utransaction_service -ppostgres --silent"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
+
+      mongo:
+        image: mongo:8.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
 
     env:
       RUN_INTEGRATION_TESTS: "true"
-      DATABASE_URL: postgresql://transaction_service:postgres@localhost:5432/blockchain_transactions
+      MYSQL_URL: mysql://transaction_service:postgres@127.0.0.1:3306/blockchain_transactions
+      MONGO_URL: mongodb://127.0.0.1:27017
+      MONGO_TEST_DATABASE: blockchain_transaction_audit_test
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: 22
 
@@ -52,10 +65,16 @@ jobs:
 
       - name: Syntax check
         run: |
-          find src -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+          find src scripts test -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 
-      - name: Test
+      - name: Application tests
         run: npm test
+
+      - name: Hardhat compile
+        run: npm run chain:compile
+
+      - name: Hardhat tests
+        run: npm run test:hardhat:ci
 
       - name: Repository health check
         run: npm run verify
