@@ -1,3 +1,5 @@
+import { isAddress } from "ethers";
+
 function positiveInteger(value, field, fallback) {
   const parsed = Number.parseInt(value ?? String(fallback), 10);
 
@@ -16,6 +18,13 @@ function booleanValue(value, fallback = false) {
   return value === "true";
 }
 
+function configError(message) {
+  const error = new Error(message);
+  error.code = "CONFIG_ERROR";
+  error.statusCode = 500;
+  return error;
+}
+
 export function loadConfig(env = process.env) {
   const nodeEnv = env.NODE_ENV ?? "development";
   const production = nodeEnv === "production";
@@ -23,10 +32,7 @@ export function loadConfig(env = process.env) {
   const port = positiveInteger(env.PORT, "PORT", 3000);
 
   if (port > 65535) {
-    const error = new Error("PORT must be <= 65535");
-    error.code = "CONFIG_ERROR";
-    error.statusCode = 500;
-    throw error;
+    throw configError("PORT must be <= 65535");
   }
 
   const apiToken = String(env.API_TOKEN ?? "").trim();
@@ -37,10 +43,7 @@ export function loadConfig(env = process.env) {
   ).trim();
   const corsOrigin = String(env.CORS_ORIGIN ?? "").trim();
 
-  const blockchainEnabled = booleanValue(
-    env.BLOCKCHAIN_ENABLED,
-    false
-  );
+  const blockchainEnabled = booleanValue(env.BLOCKCHAIN_ENABLED, false);
   const chainRpcUrl = String(env.CHAIN_RPC_URL ?? "").trim();
   const chainId = env.CHAIN_ID ? Number(env.CHAIN_ID) : undefined;
   const anchorContractAddress = String(
@@ -49,48 +52,54 @@ export function loadConfig(env = process.env) {
   const signerPrivateKey = String(
     env.CHAIN_SIGNER_PRIVATE_KEY ?? ""
   ).trim();
-  const mysqlSsl = booleanValue(env.MYSQL_SSL, production);
 
-  if (production && !apiToken) {
-    const error = new Error("API_TOKEN is required in production");
-    error.code = "CONFIG_ERROR";
-    error.statusCode = 500;
-    throw error;
+  const mysqlSsl = booleanValue(env.MYSQL_SSL, production);
+  const mongoTls = booleanValue(env.MONGO_TLS, production);
+
+  if (production && apiToken.length < 32) {
+    throw configError("API_TOKEN must contain at least 32 characters in production");
   }
 
   if (production && !mysqlUrl) {
-    const error = new Error(
-      "MYSQL_URL is required in production"
-    );
-    error.code = "CONFIG_ERROR";
-    error.statusCode = 500;
-    throw error;
+    throw configError("MYSQL_URL is required in production");
   }
 
   if (production && !mongoUrl) {
-    const error = new Error(
-      "MONGO_URL is required in production"
-    );
-    error.code = "CONFIG_ERROR";
-    error.statusCode = 500;
-    throw error;
+    throw configError("MONGO_URL is required in production");
   }
 
   if (blockchainEnabled) {
-    if (!chainRpcUrl || !anchorContractAddress || !signerPrivateKey) {
-      const error = new Error(
-        "CHAIN_RPC_URL, ANCHOR_CONTRACT_ADDRESS, and CHAIN_SIGNER_PRIVATE_KEY are required when blockchain is enabled"
+    if (!chainRpcUrl || !anchorContractAddress || !signerPrivateKey || chainId === undefined) {
+      throw configError(
+        "CHAIN_RPC_URL, CHAIN_ID, ANCHOR_CONTRACT_ADDRESS, and CHAIN_SIGNER_PRIVATE_KEY are required when blockchain is enabled"
       );
-      error.code = "CONFIG_ERROR";
-      error.statusCode = 500;
-      throw error;
     }
 
-    if (chainId !== undefined && (!Number.isInteger(chainId) || chainId < 1)) {
-      const error = new Error("CHAIN_ID must be a positive integer");
-      error.code = "CONFIG_ERROR";
-      error.statusCode = 500;
-      throw error;
+    let parsedRpcUrl;
+    try {
+      parsedRpcUrl = new URL(chainRpcUrl);
+    } catch {
+      throw configError("CHAIN_RPC_URL must be a valid URL");
+    }
+
+    if (!["http:", "https:"].includes(parsedRpcUrl.protocol)) {
+      throw configError("CHAIN_RPC_URL must use http or https");
+    }
+
+    if (production && parsedRpcUrl.protocol !== "https:") {
+      throw configError("CHAIN_RPC_URL must use HTTPS in production");
+    }
+
+    if (!Number.isInteger(chainId) || chainId < 1) {
+      throw configError("CHAIN_ID must be a positive integer");
+    }
+
+    if (!isAddress(anchorContractAddress)) {
+      throw configError("ANCHOR_CONTRACT_ADDRESS must be a valid Ethereum address");
+    }
+
+    if (!/^0x[0-9a-fA-F]{64}$/.test(signerPrivateKey)) {
+      throw configError("CHAIN_SIGNER_PRIVATE_KEY must be a 32-byte hex private key");
     }
   }
 
@@ -100,17 +109,19 @@ export function loadConfig(env = process.env) {
     try {
       origin = new URL(corsOrigin);
     } catch {
-      const error = new Error("CORS_ORIGIN must be a valid URL");
-      error.code = "CONFIG_ERROR";
-      error.statusCode = 500;
-      throw error;
+      throw configError("CORS_ORIGIN must be a valid URL");
     }
 
     if (!["http:", "https:"].includes(origin.protocol)) {
-      const error = new Error("CORS_ORIGIN must use http or https");
-      error.code = "CONFIG_ERROR";
-      error.statusCode = 500;
-      throw error;
+      throw configError("CORS_ORIGIN must use http or https");
+    }
+
+    if (production && origin.protocol !== "https:") {
+      throw configError("CORS_ORIGIN must use HTTPS in production");
+    }
+
+    if (origin.username || origin.password) {
+      throw configError("CORS_ORIGIN must not contain credentials");
     }
   }
 
@@ -123,22 +134,15 @@ export function loadConfig(env = process.env) {
     mongoUrl,
     mongoDatabase,
     corsOrigin,
-    rateLimitMax: positiveInteger(
-      env.RATE_LIMIT_MAX,
-      "RATE_LIMIT_MAX",
-      60
-    ),
+    rateLimitMax: positiveInteger(env.RATE_LIMIT_MAX, "RATE_LIMIT_MAX", 60),
     rateLimitMaxClients: positiveInteger(
       env.RATE_LIMIT_MAX_CLIENTS,
       "RATE_LIMIT_MAX_CLIENTS",
       10_000
     ),
-    mysqlPoolMax: positiveInteger(
-      env.MYSQL_POOL_MAX,
-      "MYSQL_POOL_MAX",
-      10
-    ),
+    mysqlPoolMax: positiveInteger(env.MYSQL_POOL_MAX, "MYSQL_POOL_MAX", 10),
     mysqlSsl,
+    mongoTls,
     mongoMaxPoolSize: positiveInteger(
       env.MONGO_MAX_POOL_SIZE,
       "MONGO_MAX_POOL_SIZE",
