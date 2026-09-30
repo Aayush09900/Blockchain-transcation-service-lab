@@ -34,7 +34,12 @@ const requiredFiles = [
   "test/security-vulnerabilities.test.js",
   ".github/workflows/ci.yml",
   ".github/workflows/security.yml",
-  ".github/workflows/publish-image.yml"
+  ".github/workflows/publish-image.yml",
+  ".github/workflows/deploy-railway.yml",
+  ".github/workflows/pages.yml",
+  ".github/dependabot.yml",
+  "docs/openapi.yaml",
+  "docs/RAILWAY-DEPLOYMENT.md"
 ];
 
 const failures = [];
