@@ -17,6 +17,7 @@ import {
   validateTransactionInput
 } from "./validation.js";
 import { loadConfig } from "./config.js";
+import { sanitizeError } from "./logging.js";
 
 const config = loadConfig();
 
@@ -359,26 +360,15 @@ const server = http.createServer(async (request, response) => {
         "BROADCASTING"
       );
 
+      let result;
+
       try {
-        const result = await blockchain.broadcastAnchorTransaction({
+        result = await blockchain.broadcastAnchorTransaction({
           transactionId: broadcasting.id,
           sender: broadcasting.from,
           receiver: broadcasting.to,
           amountWei: parseEther(broadcasting.amount)
         });
-
-        const updated = await transitionTransaction(
-          broadcasting.id,
-          "SUBMITTED",
-          { txHash: result.txHash }
-        );
-
-        json(response, requestId, 202, {
-          transaction: updated,
-          blockchain: result,
-          nextStep: `POST /v1/transactions/${broadcasting.id}/confirm after the transaction is mined`
-        });
-        return;
       } catch (blockchainError) {
         await transitionTransaction(
           broadcasting.id,
@@ -392,6 +382,30 @@ const server = http.createServer(async (request, response) => {
         );
 
         throw blockchainError;
+      }
+
+      try {
+        const updated = await transitionTransaction(
+          broadcasting.id,
+          "SUBMITTED",
+          { txHash: result.txHash }
+        );
+
+        json(response, requestId, 202, {
+          transaction: updated,
+          blockchain: result,
+          nextStep: `POST /v1/transactions/${broadcasting.id}/confirm after the transaction is mined`
+        });
+        return;
+      } catch (persistenceError) {
+        console.error(JSON.stringify({
+          event: "blockchain_broadcast_persistence_error",
+          requestId,
+          transactionId: broadcasting.id,
+          txHash: result.txHash,
+          message: sanitizeError(persistenceError)
+        }));
+        throw persistenceError;
       }
     }
 
