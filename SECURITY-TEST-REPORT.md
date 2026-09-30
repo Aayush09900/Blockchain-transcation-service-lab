@@ -36,6 +36,7 @@ The repository was re-checked across:
 | SEC-11 | Smart-contract behavior lacked a dedicated Hardhat test suite | High | Added Hardhat 3 + ethers integration tests |
 | SEC-12 | Repository validation did not check the full technology stack | Medium | Expanded repository health check |
 | SEC-13 | Blockchain submission waited for receipt inside the broadcast request | Medium | Split broadcast from confirmation and verify receipts before CONFIRMED |
+| SEC-14 | Submitted blockchain transactions depended on a caller to trigger confirmation | Medium | Added a dedicated receipt-monitor worker that reconciles SUBMITTED transactions |
 
 ## Current architecture
 
