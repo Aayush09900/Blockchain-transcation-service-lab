@@ -261,26 +261,7 @@ export class EthersBlockchainAdapter {
   }) {
     validateTransactionHash(txHash);
 
-    const receipt = await this.provider.getTransactionReceipt(txHash);
-
-    if (!receipt) {
-      return { reorged: true, reason: "confirmed transaction receipt disappeared" };
-    }
-
     const normalizedExpectedHash = String(confirmedBlockHash).toLowerCase();
-    const normalizedReceiptHash = String(receipt.blockHash).toLowerCase();
-
-    if (
-      receipt.status !== 1 ||
-      receipt.blockNumber !== Number(confirmedBlockNumber) ||
-      normalizedReceiptHash !== normalizedExpectedHash
-    ) {
-      return {
-        reorged: true,
-        reason: "confirmed receipt no longer matches canonical evidence"
-      };
-    }
-
     const canonicalBlock = await this.provider.getBlock(Number(confirmedBlockNumber));
 
     if (!canonicalBlock) {
@@ -294,7 +275,30 @@ export class EthersBlockchainAdapter {
       return { reorged: true, reason: "confirmed block is no longer canonical" };
     }
 
-    return { reorged: false };
+    const receipt = await this.provider.getTransactionReceipt(txHash);
+
+    if (!receipt) {
+      return {
+        reorged: false,
+        verified: false,
+        reason: "receipt temporarily unavailable while canonical block remains unchanged"
+      };
+    }
+
+    const normalizedReceiptHash = String(receipt.blockHash).toLowerCase();
+
+    if (
+      receipt.status !== 1 ||
+      receipt.blockNumber !== Number(confirmedBlockNumber) ||
+      normalizedReceiptHash !== normalizedExpectedHash
+    ) {
+      return {
+        reorged: true,
+        reason: "confirmed receipt no longer matches canonical evidence"
+      };
+    }
+
+    return { reorged: false, verified: true };
   }
 
   async getTransactionReceipt(txHash) {
@@ -517,26 +521,7 @@ export class EthersReceiptMonitor {
   }) {
     validateTransactionHash(txHash);
 
-    const receipt = await this.provider.getTransactionReceipt(txHash);
-
-    if (!receipt) {
-      return { reorged: true, reason: "confirmed transaction receipt disappeared" };
-    }
-
     const normalizedExpectedHash = String(confirmedBlockHash).toLowerCase();
-    const normalizedReceiptHash = String(receipt.blockHash).toLowerCase();
-
-    if (
-      receipt.status !== 1 ||
-      receipt.blockNumber !== Number(confirmedBlockNumber) ||
-      normalizedReceiptHash !== normalizedExpectedHash
-    ) {
-      return {
-        reorged: true,
-        reason: "confirmed receipt no longer matches canonical evidence"
-      };
-    }
-
     const canonicalBlock = await this.provider.getBlock(Number(confirmedBlockNumber));
 
     if (!canonicalBlock) {
@@ -550,7 +535,30 @@ export class EthersReceiptMonitor {
       return { reorged: true, reason: "confirmed block is no longer canonical" };
     }
 
-    return { reorged: false };
+    const receipt = await this.provider.getTransactionReceipt(txHash);
+
+    if (!receipt) {
+      return {
+        reorged: false,
+        verified: false,
+        reason: "receipt temporarily unavailable while canonical block remains unchanged"
+      };
+    }
+
+    const normalizedReceiptHash = String(receipt.blockHash).toLowerCase();
+
+    if (
+      receipt.status !== 1 ||
+      receipt.blockNumber !== Number(confirmedBlockNumber) ||
+      normalizedReceiptHash !== normalizedExpectedHash
+    ) {
+      return {
+        reorged: true,
+        reason: "confirmed receipt no longer matches canonical evidence"
+      };
+    }
+
+    return { reorged: false, verified: true };
   }
 
   async getTransactionReceipt(txHash) {
