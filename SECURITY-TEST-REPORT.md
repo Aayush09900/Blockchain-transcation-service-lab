@@ -22,6 +22,11 @@ Security-focused regression testing for:
 | SEC-04 | Unexpected internal errors could expose raw error messages to API clients | High | Fixed |
 | SEC-05 | Bearer token comparison used ordinary string equality | Low | Fixed |
 | SEC-06 | Health/readiness responses exposed the persistence implementation | Low | Fixed |
+| SEC-07 | Local Docker Compose file contained hardcoded database/API credentials | High | Fixed |
+
+## Configuration secret investigation
+
+The Docker Compose configuration originally contained literal database and API credentials. Those values are now required through environment variables, and the example configuration documents the expected variables without embedding real credentials.
 
 ## Path traversal investigation
 
