@@ -69,3 +69,23 @@ describe("TransactionReceiptAnchor", function () {
     );
   });
 });
+
+  it("only allows the configured anchorer to write records", async function () {
+    const [anchorer, attacker, receiver] = await ethers.getSigners();
+
+    const contract = await ethers.deployContract("TransactionReceiptAnchor");
+    await contract.waitForDeployment();
+
+    const attackerContract = contract.connect(attacker);
+
+    await assert.rejects(
+      attackerContract.anchor(
+        ethers.id("unauthorized"),
+        attacker.address,
+        receiver.address,
+        1n
+      )
+    );
+
+    assert.equal(await contract.anchorer(), anchorer.address);
+  });
