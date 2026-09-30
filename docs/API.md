@@ -59,9 +59,13 @@ Moves:
 
 ## POST /v1/transactions/:id/confirm
 
+When blockchain mode is enabled, the service verifies the stored transaction hash against the configured RPC before confirming.
+
 Moves:
 
 `SUBMITTED -> CONFIRMED`
+
+If no receipt is available yet, the endpoint returns `409`. If the receipt status is reverted, the transaction is marked `FAILED`.
 
 ## POST /v1/transactions/:id/fail
 
@@ -83,7 +87,9 @@ Enabled only when the ethers.js blockchain adapter is configured.
 
 The service uses the configured signer and calls the on-chain receipt anchor contract.
 
-The operation returns the resulting transaction hash and block number.
+The operation broadcasts the anchor transaction and returns the transaction hash immediately with HTTP `202`.
+
+The transaction remains `SUBMITTED` until the on-chain receipt can be verified through the confirm endpoint.
 
 This is a blockchain audit anchor, not a user-fund transfer endpoint.
 
