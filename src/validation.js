@@ -41,7 +41,7 @@ export function validateEthereumAddress(value, field) {
 
 export function validateAmount(value) {
   const amount = requireNonEmptyString(
-    String(value ?? ""),
+    value,
     "amount",
     MAX_AMOUNT_LENGTH
   );
