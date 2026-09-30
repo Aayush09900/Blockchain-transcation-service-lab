@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   idempotency_key VARCHAR(128) NOT NULL,
   sender VARCHAR(128) NOT NULL,
   receiver VARCHAR(128) NOT NULL,
-  amount DECIMAL(65, 30) NOT NULL,
+  amount DECIMAL(65, 18) NOT NULL,
   status ENUM('CREATED', 'SUBMITTED', 'CONFIRMED', 'FAILED') NOT NULL,
   tx_hash CHAR(66) NULL,
   failure_reason VARCHAR(500) NULL,
