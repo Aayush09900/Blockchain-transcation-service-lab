@@ -184,14 +184,11 @@ export class EthersBlockchainAdapter {
     ]);
 
     if (!transaction) {
-      const error = new Error("blockchain transaction not found");
-      error.code = "BLOCKCHAIN_VERIFICATION_FAILED";
-      error.statusCode = 409;
-      throw error;
+      return { confirmed: false, notFound: true, receipt: null };
     }
 
     if (!receipt) {
-      return { confirmed: false, receipt: null };
+      return { confirmed: false, submitted: true, receipt: null };
     }
 
     if (receipt.status !== 1) {
