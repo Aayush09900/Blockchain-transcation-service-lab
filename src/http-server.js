@@ -3,7 +3,10 @@ import { randomUUID } from "node:crypto";
 import { parseEther } from "ethers";
 import { MySqlTransactionStore } from "./mysql-store.js";
 import { MongoAuditStore } from "./mongo-audit-store.js";
-import { EthersBlockchainAdapter } from "./blockchain-adapter.js";
+import {
+  EthersBlockchainAdapter,
+  validateSignedTransactionIntent
+} from "./blockchain-adapter.js";
 import {
   applySecurityHeaders,
   authenticate,
