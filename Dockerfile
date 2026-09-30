@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:22.23.3-alpine
 
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -8,7 +8,8 @@ WORKDIR /app
 COPY package*.json ./
 
 RUN npm install --omit=dev --ignore-scripts --no-audit --no-fund \
-    && npm cache clean --force
+    && npm cache clean --force \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 COPY src ./src
 
