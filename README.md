@@ -80,7 +80,7 @@ MySQL2 supports pooled connections, prepared statements, Promise APIs and SSL, w
 
 ## Transaction lifecycle
 
-`CREATED -> SUBMITTED -> CONFIRMED`
+`CREATED -> BROADCASTING -> SUBMITTED -> CONFIRMED`
 
 A transaction may move to `FAILED` from `CREATED` or `SUBMITTED`.
 
