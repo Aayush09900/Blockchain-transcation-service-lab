@@ -52,6 +52,7 @@ The repository was re-checked across:
 | SEC-27 | Broadcast/RPC or post-broadcast persistence ambiguity could be converted into FAILED | High | Transaction remains BROADCASTING until reconciliation recovers and verifies the on-chain anchor |
 | SEC-28 | Concurrent submit/claim errors could be reported as blockchain broadcast ambiguity | Medium | Broadcast-ambiguity wrapping is now limited to actual broadcast and post-broadcast persistence failures; initial BROADCASTING claim errors propagate unchanged |
 | SEC-29 | Single-RPC dependency and concurrent signer calls could create availability or nonce-collision risk | High | Added multi-RPC FallbackProvider support and process-local NonceManager serialization; distributed nonce coordination remains a deployment requirement |
+| SEC-30 | Confirmed transactions lacked durable canonical block evidence for post-confirmation reorg detection | High | Persist confirmed block number/hash, revalidate canonical block evidence, and recover transactions through the REORGED state |
 
 ## Current architecture
 
@@ -90,7 +91,7 @@ Remaining controls for real-money usage:
 - cross-instance nonce coordination
 - fee policy
 - chain allowlist
-- reorg handling
+- cross-provider finality monitoring for deep-chain reorgs
 - on-chain reconciliation for unresolved broadcasts; ongoing reorg reconciliation remains required
 - distributed rate limiting
 - managed secrets
