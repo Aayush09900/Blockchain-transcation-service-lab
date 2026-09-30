@@ -78,13 +78,36 @@ MySQL2 supports pooled connections, prepared statements, Promise APIs and SSL, w
 └── SECURITY-TEST-REPORT.md
 ```
 
+## Architecture documents
+
+The approved product-to-implementation documents are maintained in `docs/`:
+
+- [PRD](./docs/PRD.md)
+- [TRD](./docs/TRD.md)
+- [App Flow](./docs/APP_FLOW.md)
+- [UI/UX Design Brief](./docs/UI_UX.md)
+- [Backend Schema](./docs/BACKEND_SCHEMA.md)
+- [Implementation Plan](./docs/IMPLEMENTATION_PLAN.md)
+
 ## Transaction lifecycle
+
+The current implementation supports:
 
 `CREATED -> BROADCASTING -> SUBMITTED -> CONFIRMED`
 
-A transaction may move to `FAILED` from `CREATED` or `SUBMITTED`.
+A transaction may move to `FAILED` from `CREATED`, `BROADCASTING`, or `SUBMITTED`.
 
-Terminal states are protected from invalid rewrites.
+The `BROADCASTING` state represents an in-progress blockchain broadcast operation. A transaction hash is evidence of submission, not confirmation.
+
+## Current persistence model
+
+The current MySQL schema intentionally uses:
+
+- `transactions` as the authoritative transaction/state table.
+- `transaction_outbox` as the durable event-delivery mechanism.
+- A unique `idempotency_key` on `transactions` for request deduplication.
+
+MongoDB is a derived audit/read model, not the source of truth.
 
 ## System architecture
 
