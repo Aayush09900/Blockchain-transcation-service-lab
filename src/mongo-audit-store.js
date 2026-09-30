@@ -44,8 +44,8 @@ export class MongoAuditStore {
     );
 
     await this.events.createIndex(
-      { transactionId: 1, createdAt: -1 },
-      { name: "ix_transaction_events_tx_created" }
+      { transactionId: 1, occurredAt: -1, createdAt: -1 },
+      { name: "ix_transaction_events_tx_occurred" }
     );
 
     await this.transactions.createIndex(
@@ -81,6 +81,7 @@ export class MongoAuditStore {
       transactionId: String(event.transactionId),
       eventType: String(event.eventType),
       payload: event.payload,
+      occurredAt: event.occurredAt ? new Date(event.occurredAt) : new Date(),
       createdAt: new Date()
     };
 
@@ -102,8 +103,28 @@ export class MongoAuditStore {
   async upsertSnapshot(transaction) {
     await this.ensureConnected();
 
+    const updatedAt = new Date(transaction.updatedAt);
+
     await this.transactions.updateOne(
       { transactionId: transaction.id },
+      {
+        $setOnInsert: {
+          transactionId: transaction.id,
+          updatedAt: new Date(0),
+          createdAt: new Date(transaction.createdAt)
+        }
+      },
+      { upsert: true, writeConcern: { w: "majority" } }
+    );
+
+    await this.transactions.updateOne(
+      {
+        transactionId: transaction.id,
+        $or: [
+          { updatedAt: { $exists: false } },
+          { updatedAt: { $lt: updatedAt } }
+        ]
+      },
       {
         $set: {
           transactionId: transaction.id,
@@ -114,13 +135,10 @@ export class MongoAuditStore {
           txHash: transaction.txHash ?? null,
           attempts: transaction.attempts,
           failureReason: transaction.failureReason ?? null,
-          updatedAt: new Date(transaction.updatedAt)
-        },
-        $setOnInsert: {
-          createdAt: new Date(transaction.createdAt)
+          updatedAt
         }
       },
-      { upsert: true, writeConcern: { w: "majority" } }
+      { writeConcern: { w: "majority" } }
     );
   }
 
@@ -131,7 +149,7 @@ export class MongoAuditStore {
 
     return this.events
       .find({ transactionId })
-      .sort({ createdAt: -1 })
+      .sort({ occurredAt: -1, createdAt: -1 })
       .limit(safeLimit)
       .toArray();
   }
