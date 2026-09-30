@@ -18,7 +18,8 @@ export class MySqlTransactionStore {
   constructor({
     url = process.env.MYSQL_URL,
     maxPoolSize = 10,
-    ssl = process.env.MYSQL_SSL === "true"
+    ssl = process.env.MYSQL_SSL === "true",
+    workerId = randomUUID()
   } = {}) {
     if (!url) {
       const error = new Error("MYSQL_URL is required");
@@ -28,6 +29,8 @@ export class MySqlTransactionStore {
     }
 
     const parsed = new URL(url);
+
+    this.workerId = String(workerId).slice(0, 64);
 
     this.pool = mysql.createPool({
       host: parsed.hostname,
@@ -300,18 +303,62 @@ export class MySqlTransactionStore {
 
   async claimOutboxBatch(limit = 50) {
     const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 500));
-    const [rows] = await this.pool.query(
-      `SELECT id, event_id, transaction_id, event_type, payload
-       FROM transaction_outbox
-       WHERE published_at IS NULL
-         AND dead_lettered_at IS NULL
-         AND (next_attempt_at IS NULL OR next_attempt_at <= CURRENT_TIMESTAMP(6))
-       ORDER BY id ASC
-       LIMIT ?`,
-      [safeLimit]
-    );
+    const connection = await this.pool.getConnection();
+    const leaseUntil = new Date(Date.now() + 60_000);
 
-    return rows;
+    try {
+      await connection.beginTransaction();
+
+      const [rows] = await connection.query(
+        `SELECT id
+         FROM transaction_outbox
+         WHERE published_at IS NULL
+           AND dead_lettered_at IS NULL
+           AND (next_attempt_at IS NULL OR next_attempt_at <= CURRENT_TIMESTAMP(6))
+           AND (claimed_until IS NULL OR claimed_until < CURRENT_TIMESTAMP(6))
+         ORDER BY id ASC
+         LIMIT ?
+         FOR UPDATE SKIP LOCKED`,
+        [safeLimit]
+      );
+
+      if (rows.length === 0) {
+        await connection.commit();
+        return [];
+      }
+
+      for (const row of rows) {
+        await connection.execute(
+          `UPDATE transaction_outbox
+           SET claimed_by = ?,
+               claimed_until = ?
+           WHERE id = ?
+             AND published_at IS NULL
+             AND dead_lettered_at IS NULL`,
+          [this.workerId, leaseUntil, row.id]
+        );
+      }
+
+      const ids = rows.map((row) => row.id);
+      const placeholders = ids.map(() => "?").join(", ");
+
+      const [claimedRows] = await connection.query(
+        `SELECT id, event_id, transaction_id, event_type, payload, claimed_by
+         FROM transaction_outbox
+         WHERE id IN (${placeholders})
+           AND claimed_by = ?
+         ORDER BY id ASC`,
+        [...ids, this.workerId]
+      );
+
+      await connection.commit();
+      return claimedRows;
+    } catch (error) {
+      await connection.rollback().catch(() => {});
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
 
   async markOutboxPublished(id) {
@@ -320,21 +367,29 @@ export class MySqlTransactionStore {
        SET published_at = CURRENT_TIMESTAMP(6),
            attempts = attempts + 1,
            last_error = NULL,
-           next_attempt_at = NULL
-       WHERE id = ? AND published_at IS NULL`,
-      [id]
+           next_attempt_at = NULL,
+           claimed_by = NULL,
+           claimed_until = NULL
+       WHERE id = ?
+         AND published_at IS NULL
+         AND claimed_by = ?`,
+      [id, this.workerId]
     );
   }
 
   async markOutboxFailed(id, message) {
-    const attemptsResult = await this.pool.execute(
-      "SELECT attempts FROM transaction_outbox WHERE id = ? AND published_at IS NULL",
-      [id]
+    const [rows] = await this.pool.execute(
+      `SELECT attempts
+       FROM transaction_outbox
+       WHERE id = ?
+         AND published_at IS NULL
+         AND claimed_by = ?`,
+      [id, this.workerId]
     );
 
-    if (attemptsResult[0].length === 0) return;
+    if (rows.length === 0) return;
 
-    const attempts = Number(attemptsResult[0][0].attempts) + 1;
+    const attempts = Number(rows[0].attempts) + 1;
     const maxAttempts = 10;
 
     if (attempts >= maxAttempts) {
@@ -343,13 +398,13 @@ export class MySqlTransactionStore {
          SET attempts = ?,
              last_error = ?,
              dead_lettered_at = CURRENT_TIMESTAMP(6),
-             next_attempt_at = NULL
-         WHERE id = ? AND published_at IS NULL`,
-        [
-          attempts,
-          String(message).slice(0, 1000),
-          id
-        ]
+             next_attempt_at = NULL,
+             claimed_by = NULL,
+             claimed_until = NULL
+         WHERE id = ?
+           AND published_at IS NULL
+           AND claimed_by = ?`,
+        [attempts, String(message).slice(0, 1000), id, this.workerId]
       );
       return;
     }
@@ -361,16 +416,23 @@ export class MySqlTransactionStore {
       `UPDATE transaction_outbox
        SET attempts = ?,
            last_error = ?,
-           next_attempt_at = ?
-       WHERE id = ? AND published_at IS NULL`,
+           next_attempt_at = ?,
+           claimed_by = NULL,
+           claimed_until = NULL
+       WHERE id = ?
+         AND published_at IS NULL
+         AND claimed_by = ?`,
       [
         attempts,
         String(message).slice(0, 1000),
         nextAttemptAt,
-        id
+        id,
+        this.workerId
       ]
     );
   }
+}
+
 }
 
 function canonicalDecimal(value) {
