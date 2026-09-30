@@ -35,6 +35,7 @@ The repository was re-checked across:
 | SEC-10 | Blockchain code was not isolated from the HTTP layer | Medium | Added ethers.js adapter boundary |
 | SEC-11 | Smart-contract behavior lacked a dedicated Hardhat test suite | High | Added Hardhat 3 + ethers integration tests |
 | SEC-12 | Repository validation did not check the full technology stack | Medium | Expanded repository health check |
+| SEC-13 | Blockchain submission waited for receipt inside the broadcast request | Medium | Split broadcast from confirmation and verify receipts before CONFIRMED |
 
 ## Current architecture
 
@@ -74,7 +75,7 @@ Remaining controls for real-money usage:
 - nonce management
 - fee policy
 - chain allowlist
-- confirmation depth
+- confirmation depth beyond the current receipt check
 - reorg handling
 - on-chain reconciliation
 - distributed rate limiting
