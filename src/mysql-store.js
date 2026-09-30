@@ -3,14 +3,17 @@ import { randomUUID } from "node:crypto";
 import {
   requireNonEmptyString,
   validateTransactionInput,
-  validateTransactionHash
+  validateTransactionHash,
+  validateBlockHash,
+  validateBlockNumber
 } from "./validation.js";
 
 const transitions = {
   CREATED: new Set(["BROADCASTING", "SUBMITTED", "FAILED"]),
   BROADCASTING: new Set(["SUBMITTED", "FAILED" ]),
   SUBMITTED: new Set(["CONFIRMED", "FAILED"]),
-  CONFIRMED: new Set([]),
+  CONFIRMED: new Set(["REORGED"]),
+  REORGED: new Set(["SUBMITTED", "CONFIRMED"]),
   FAILED: new Set([])
 };
 
@@ -185,6 +188,39 @@ export class MySqlTransactionStore {
     return rows.map(mapRow);
   }
 
+  async listConfirmed(limit = 100) {
+    const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
+
+    const [rows] = await this.pool.query(
+      `SELECT *
+       FROM transactions
+       WHERE status = 'CONFIRMED'
+         AND confirmed_block_number IS NOT NULL
+         AND confirmed_block_hash IS NOT NULL
+       ORDER BY confirmed_block_number DESC
+       LIMIT ?`,
+      [safeLimit]
+    );
+
+    return rows.map(mapRow);
+  }
+
+  async listReorged(limit = 100) {
+    const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
+
+    const [rows] = await this.pool.query(
+      `SELECT *
+       FROM transactions
+       WHERE status = 'REORGED'
+         AND tx_hash IS NOT NULL
+       ORDER BY updated_at ASC
+       LIMIT ?`,
+      [safeLimit]
+    );
+
+    return rows.map(mapRow);
+  }
+
   async listSubmitted(limit = 100) {
     const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
 
@@ -252,8 +288,22 @@ export class MySqlTransactionStore {
           ? current.tx_hash
           : validateTransactionHash(patch.txHash);
 
+      const confirmedBlockNumber =
+        nextStatus === "CONFIRMED"
+          ? validateBlockNumber(patch.confirmedBlockNumber)
+          : nextStatus === "REORGED"
+            ? null
+            : current.confirmed_block_number;
+
+      const confirmedBlockHash =
+        nextStatus === "CONFIRMED"
+          ? validateBlockHash(patch.confirmedBlockHash)
+          : nextStatus === "REORGED"
+            ? null
+            : current.confirmed_block_hash;
+
       const failureReason =
-        nextStatus === "FAILED"
+        nextStatus === "FAILED" || nextStatus === "REORGED"
           ? requireNonEmptyString(
               patch.failureReason ?? "transaction failed",
               "failureReason",
@@ -270,6 +320,8 @@ export class MySqlTransactionStore {
         `UPDATE transactions
          SET status = ?,
              tx_hash = ?,
+             confirmed_block_number = ?,
+             confirmed_block_hash = ?,
              failure_reason = ?,
              attempts = ?,
              updated_at = CURRENT_TIMESTAMP(6)
@@ -277,6 +329,8 @@ export class MySqlTransactionStore {
         [
           nextStatus,
           txHash,
+          confirmedBlockNumber,
+          confirmedBlockHash,
           failureReason,
           attempts,
           id
@@ -465,6 +519,12 @@ function mapRow(row) {
     amount: canonicalDecimal(row.amount),
     status: row.status,
     txHash: row.tx_hash,
+    confirmedBlockNumber:
+      row.confirmed_block_number === null ||
+      row.confirmed_block_number === undefined
+        ? null
+        : Number(row.confirmed_block_number),
+    confirmedBlockHash: row.confirmed_block_hash,
     failureReason: row.failure_reason,
     attempts: Number(row.attempts),
     createdAt: new Date(row.created_at).toISOString(),
