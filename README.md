@@ -1,26 +1,71 @@
 # Blockchain Transaction Service Lab
 
-A security-conscious backend lab for designing reliable blockchain transaction processing.
+A security-conscious backend engineering lab for reliable blockchain transaction processing.
 
-The project focuses on the engineering boundary between an API request and an on-chain confirmation:
+The project focuses on the boundary between an API request and an on-chain confirmation:
 
-`API request -> authentication -> idempotency -> state machine -> transaction processing -> confirmation -> reconciliation`
+`API request -> security edge -> idempotency -> state machine -> persistence -> worker -> blockchain/RPC -> confirmation -> reconciliation`
 
 ## Current capabilities
 
 - Idempotency keys with conflict detection
-- Explicit transaction lifecycle
-- Exact decimal-string amount handling
-- Internal transaction IDs separated from blockchain transaction hashes
+- Canonical exact-string transaction amounts
+- Explicit transaction lifecycle and invalid-transition protection
+- PostgreSQL persistence with transactional writes
+- Transaction event/audit records
 - HTTP API with bearer-token authentication
-- Request body size limits
-- In-memory rate limiting
-- Security response headers
+- Request ID propagation
+- Strict transaction-path UUID validation
+- Request body limits and JSON content-type validation
+- Bounded in-memory rate limiting
+- Security response headers and CORS allowlisting
 - Health and readiness endpoints
 - Graceful shutdown
 - Non-root production container
-- CI dependency audit and test execution
-- Security and architecture documentation
+- Docker Compose PostgreSQL development stack
+- CI unit tests and PostgreSQL integration tests
+- Dependency audit
+- Repository structure and secret health checks
+- Security vulnerability regression suite
+- Architecture, API, operations, and security documentation
+
+## Project structure
+
+```
+.
+├── .github/
+│   └── workflows/
+│       ├── ci.yml
+│       └── security.yml
+├── db/
+│   └── 001_init.sql
+├── docs/
+│   ├── API.md
+│   ├── ARCHITECTURE.md
+│   ├── OPERATIONS.md
+│   └── SECURITY-ARCHITECTURE.md
+├── scripts/
+│   └── repo-health-check.js
+├── src/
+│   ├── config.js
+│   ├── http-errors.js
+│   ├── http-server.js
+│   ├── path-security.js
+│   ├── postgres-store.js
+│   ├── security.js
+│   ├── transaction-service.js
+│   └── validation.js
+├── test/
+│   ├── config.test.js
+│   ├── postgres-store.integration.test.js
+│   ├── security-vulnerabilities.test.js
+│   └── transaction-service.test.js
+├── Dockerfile
+├── docker-compose.yml
+├── package.json
+├── SECURITY-TEST-REPORT.md
+└── SECURITY.md
+```
 
 ## Transaction lifecycle
 
@@ -28,44 +73,91 @@ The project focuses on the engineering boundary between an API request and an on
 
 A transaction can move to `FAILED` from `CREATED` or `SUBMITTED`.
 
-Terminal states are not silently overwritten.
+Terminal states are protected from invalid rewrites.
 
-## Architecture
+## System architecture
 
-`Client/API -> Security Edge -> Transaction Service -> Queue -> Worker -> Blockchain/RPC -> Confirmation/Event Listener -> Reconciliation/Audit`
+```
+Client/API
+   |
+   v
+Security Edge
+   |
+   +--> Authentication
+   +--> Rate Limiting
+   +--> Input Validation
+   +--> Path Validation
+   |
+   v
+Transaction Service
+   |
+   +--> Idempotency
+   +--> State Machine
+   |
+   v
+PostgreSQL
+   |
+   +--> Transactions
+   +--> Idempotency Constraint
+   +--> Transaction Events / Audit
+   |
+   v
+Queue / Worker boundary
+   |
+   v
+Blockchain / RPC
+   |
+   v
+Confirmation / Event Listener
+   |
+   v
+Reconciliation / Monitoring
+```
 
-The current repository implements the API and core transaction service. Queue, worker, durable persistence, blockchain adapters, and reconciliation remain explicit production-hardening work.
-
-See:
-
-- `docs/ARCHITECTURE.md`
-- `docs/SECURITY-ARCHITECTURE.md`
-- `docs/API.md`
-- `docs/OPERATIONS.md`
+The repository currently implements the security edge, transaction service, PostgreSQL persistence, and test/CI layers. Queue/worker execution, live blockchain submission, confirmation monitoring, and reconciliation remain separate production components to implement and operate.
 
 ## Run locally
 
-Set an API token:
+### Core tests
 
 ```bash
-# PowerShell
-$env:API_TOKEN="change-me"
 npm install
 npm test
+npm run verify
+```
+
+### Development server
+
+PowerShell:
+
+```powershell
+$env:NODE_ENV="development"
+$env:API_TOKEN="change-me"
 npm start
 ```
 
-Health:
+### Local PostgreSQL stack
+
+Copy `.env.example` to `.env`, replace the placeholder credentials, then:
+
+```bash
+docker compose up --build
+```
+
+The API is intentionally bound to `127.0.0.1:3000` by the compose file.
+
+### Health
 
 ```
 GET http://localhost:3000/health
+GET http://localhost:3000/ready
 ```
 
-Create a transaction:
+### Create a transaction
 
 ```
 POST /v1/transactions
-Authorization: Bearer change-me
+Authorization: Bearer <API_TOKEN>
 Idempotency-Key: withdrawal-123
 Content-Type: application/json
 
@@ -78,25 +170,57 @@ Content-Type: application/json
 
 ## Security model
 
-The project treats security as defense in depth:
+The project uses defense in depth:
 
-1. Network firewall / security-group controls
+1. Network firewall or cloud security group
 2. TLS at the deployment edge
-3. Authentication and authorization
+3. Authentication
 4. Rate limiting
-5. Request validation and body-size limits
-6. Idempotent transaction handling
-7. Explicit state transitions
-8. Secret management outside Git
-9. Audit/observability controls
-10. CI security checks
+5. Request validation
+6. Strict path validation
+7. Idempotency
+8. Explicit state transitions
+9. PostgreSQL transactional persistence
+10. Secret management outside source control
+11. Audit events and request IDs
+12. CI security validation
 
-A code repository cannot create the cloud/network firewall itself. Infrastructure-level firewall rules must be configured at deployment.
+The application does not pretend to be a network firewall. Infrastructure firewall rules, private subnets, TLS termination, and secret-manager integration belong to the deployment environment.
 
-## Production-readiness status
+## Security testing
 
-This is a serious engineering lab, but it is not yet a production custody service.
+Run:
 
-Before real funds or production custody are considered, the service still needs durable PostgreSQL persistence, distributed idempotency constraints, a durable queue and workers, retry/backoff and dead-letter handling, RPC failover, nonce and fee management, confirmation-depth and reorg handling, on-chain reconciliation, centralized observability, secret management, TLS, network segmentation, backups, and a security review.
+```bash
+npm test
+```
 
-**Do not use this repository with real funds.**
+Security regression coverage includes path traversal probes, malformed URL encoding, authentication boundaries, rate-limit pressure, security headers, configuration invariants, and internal error disclosure.
+
+See:
+
+`SECURITY-TEST-REPORT.md`
+
+## Production readiness
+
+This repository is now a production-oriented engineering foundation, but it is not presented as a production custody service.
+
+Before handling real funds, the following must still be implemented and independently reviewed:
+
+- Durable queue and worker processing
+- Retry/backoff and dead-letter handling
+- Blockchain RPC failover
+- Nonce and fee management
+- Chain allowlisting
+- Confirmation-depth and reorg handling
+- On-chain receipt verification
+- Reconciliation jobs
+- Distributed rate limiting
+- Centralized metrics, tracing, and logs
+- Managed secrets
+- TLS and cloud firewall configuration
+- Backup and restore testing
+- Disaster-recovery procedures
+- Independent security review
+
+Do not connect this repository to real funds or production custody without these controls and appropriate operational review.
