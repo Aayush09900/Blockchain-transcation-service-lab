@@ -20,8 +20,9 @@ Outbox Worker -> MongoDB
 The repository currently uses a MySQL transactions table plus transaction_outbox rather than separate transaction_events, idempotency_keys, and outbox_events tables. This simpler model is retained unless a concrete requirement justifies migration.
 
 ## State machine
-CREATED -> SUBMITTED -> CONFIRMED
+CREATED -> BROADCASTING -> SUBMITTED -> CONFIRMED
 CREATED -> FAILED
+CREATED -> BROADCASTING -> FAILED
 SUBMITTED -> FAILED
 
 Blockchain ambiguity is a reconciliation state/problem, not an automatic FAILED transition.
