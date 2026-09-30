@@ -1,92 +1,99 @@
 # HTTP API
 
-## Health
+All protected endpoints require:
 
-GET /health
+`Authorization: Bearer <API_TOKEN>`
 
-No authentication required.
+## GET /health
 
-Response:
+Returns basic liveness information without exposing database details.
 
-{"status":"ok"}
+## GET /ready
 
-## Readiness
+Checks:
 
-GET /ready
+- MySQL
+- MongoDB
+- ethers.js chain connectivity when enabled
 
-No authentication required.
+## POST /v1/transactions
 
-Response:
+Creates a transaction.
 
-{"status":"ready"}
+Headers:
 
-## Create transaction
+`Idempotency-Key: <unique-key>`
 
-POST /v1/transactions
+Body:
 
-Requires:
-
-Authorization: Bearer <API_TOKEN>
-
-Content-Type: application/json
-
-Idempotency can be supplied using the Idempotency-Key header. The JSON body also accepts idempotencyKey.
-
-Example:
-
+```json
 {
   "from": "0xsender",
   "to": "0xreceiver",
-  "amount": "1000000000000000"
+  "amount": "0.001"
 }
+```
 
-The service preserves amounts as strings and rejects scientific notation or zero values.
+Amounts are accepted as decimal strings and are never processed through JavaScript Number conversion.
 
-Reusing an idempotency key with the same request returns the existing transaction. Reusing it with different transaction data is rejected.
+## GET /v1/transactions/:id
 
-## Get transaction
+Returns the authoritative MySQL transaction record.
 
-GET /v1/transactions/:id
+Transaction IDs are restricted to UUID format.
 
-Requires the same bearer token.
-
-## Operational notes
-
-The current implementation uses in-memory state. Restarting the process loses transaction state. Durable storage and a queue/worker boundary are required before production custody or real funds are introduced.
-
-
-## Submit transaction
-
-POST /v1/transactions/:id/submit
-
-Requires the bearer token.
+## POST /v1/transactions/:id/submit
 
 Body:
 
+```json
 {
   "txHash": "0x..."
 }
+```
 
-Moves CREATED -> SUBMITTED.
+Moves:
 
-## Confirm transaction
+`CREATED -> SUBMITTED`
 
-POST /v1/transactions/:id/confirm
+## POST /v1/transactions/:id/confirm
 
-Moves SUBMITTED -> CONFIRMED.
+Moves:
 
-## Fail transaction
+`SUBMITTED -> CONFIRMED`
 
-POST /v1/transactions/:id/fail
+## POST /v1/transactions/:id/fail
 
 Body:
 
+```json
 {
   "reason": "RPC timeout"
 }
+```
 
-Moves CREATED or SUBMITTED -> FAILED.
+Moves:
 
-## Persistence
+`CREATED|SUBMITTED -> FAILED`
 
-If DATABASE_URL is configured, the API uses PostgreSQL. Without it, the service falls back to in-memory state for local development.
+## POST /v1/transactions/:id/anchor
+
+Enabled only when the ethers.js blockchain adapter is configured.
+
+The service uses the configured signer and calls the on-chain receipt anchor contract.
+
+The operation returns the resulting transaction hash and block number.
+
+This is a blockchain audit anchor, not a user-fund transfer endpoint.
+
+## GET /v1/transactions/:id/events
+
+Returns the MongoDB audit/read-model events associated with a transaction.
+
+## Idempotency behavior
+
+The same idempotency key and same request returns the original transaction.
+
+The same idempotency key with different sender, receiver or amount returns a conflict.
+
+The uniqueness guarantee is enforced in MySQL.
