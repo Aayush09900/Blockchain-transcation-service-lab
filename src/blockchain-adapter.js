@@ -147,6 +147,43 @@ export class EthersBlockchainAdapter {
     };
   }
 
+  async prepareAnchorTransaction({
+    transactionId,
+    sender,
+    receiver,
+    amountWei,
+    chainId
+  }) {
+    const network = await this.provider.getNetwork();
+    const effectiveChainId = chainId ?? network.chainId;
+
+    if (network.chainId !== BigInt(effectiveChainId)) {
+      throw blockchainVerificationError("configured chain id does not match RPC chain");
+    }
+
+    const unsigned = await this.contract.anchor.populateTransaction(
+      transactionIdToBytes32(transactionId),
+      getAddress(sender),
+      getAddress(receiver),
+      BigInt(amountWei)
+    );
+
+    const populated = await this.signer.populateTransaction({
+      ...unsigned,
+      chainId: BigInt(effectiveChainId)
+    });
+
+    const serializedTransaction = await this.signer.signTransaction(populated);
+    const parsed = Transaction.from(serializedTransaction);
+
+    return {
+      serializedTransaction,
+      txHash: parsed.hash,
+      transactionId,
+      chainId: parsed.chainId.toString()
+    };
+  }
+
   async broadcastAnchorTransaction({
     transactionId,
     sender,
