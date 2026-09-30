@@ -37,6 +37,14 @@ The repository was re-checked across:
 | SEC-12 | Repository validation did not check the full technology stack | Medium | Expanded repository health check |
 | SEC-13 | Blockchain submission waited for receipt inside the broadcast request | Medium | Split broadcast from confirmation and verify receipts before CONFIRMED |
 | SEC-14 | Submitted blockchain transactions depended on a caller to trigger confirmation | Medium | Added a dedicated receipt-monitor worker that reconciles SUBMITTED transactions |
+| SEC-15 | Confirmation checked receipt status without proving the mined transaction matched the stored intent | High | Added on-chain transaction/payload verification before CONFIRMED |
+| SEC-16 | Runtime/worker errors could expose credential-bearing connection strings in logs | High | Added centralized log redaction and control-character sanitization |
+| SEC-17 | Production blockchain configuration accepted weak transport/key/address settings | High | Enforced HTTPS RPC, chain ID, contract address and private-key format validation |
+| SEC-18 | CI action references were mutable tags | Medium | Pinned security-sensitive GitHub Actions to immutable commit SHAs |
+| SEC-19 | Runtime image included npm CLI dependency tree with high/critical findings | High | Updated Node LTS base and removed npm/npx from runtime image after dependency installation |
+| SEC-20 | Container services retained unnecessary Linux privileges | Medium | Added no-new-privileges, dropped capabilities, read-only root filesystem and hardened /tmp |
+| SEC-21 | Numeric JSON amounts could be coerced before validation | High | Amount validation now requires decimal strings to prevent floating-point precision loss |
+| SEC-22 | Lockfile bootstrap relied on setup-node automatic npm cache detection while no lockfile was committed | Medium | Removed the fragile bootstrap workflow and disabled package-manager cache in CI/security workflows |
 
 ## Current architecture
 
@@ -56,7 +64,7 @@ Outbox worker
 MongoDB audit/read model
 
 Optional blockchain path:
-Transaction -> ethers.js -> Ethereum -> receipt anchor
+Transaction -> ethers.js -> Ethereum -> receipt anchor -> verified receipt -> MySQL
 ```
 
 ## Security conclusion
@@ -85,6 +93,8 @@ Remaining controls for real-money usage:
 - backup/restore validation
 - disaster recovery
 - external security review
+- durable broadcast/reconciliation for the crash window between on-chain submission and MySQL hash persistence
+- multi-provider RPC failover and nonce coordination
 
 
 ## Final CI review notes
