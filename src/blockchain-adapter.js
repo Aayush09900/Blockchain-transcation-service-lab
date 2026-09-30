@@ -120,7 +120,7 @@ export class EthersBlockchainAdapter {
       // NonceManager may have reserved a nonce before an ambiguous RPC error.
       // Resetting forces the next submission to reconcile with the node's
       // current pending nonce instead of blindly reusing stale local state.
-      this.signer.reset();
+      this.signer.reset?.();
       throw error;
     }
 
