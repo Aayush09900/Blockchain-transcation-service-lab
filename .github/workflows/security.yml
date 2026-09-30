@@ -40,3 +40,6 @@ jobs:
 
       - name: Test suite
         run: npm test
+
+      - name: Repository health check
+        run: npm run verify
