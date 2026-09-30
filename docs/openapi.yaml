@@ -1,0 +1,224 @@
+openapi: 3.1.0
+info:
+  title: Blockchain Transaction Service API
+  version: 1.0.0
+  description: |
+    Production-oriented transaction-processing API with MySQL as the source of truth,
+    MongoDB audit/read projection, and optional Ethereum receipt anchoring.
+servers:
+  - url: https://YOUR_API_DOMAIN
+    description: Production runtime
+  - url: http://localhost:3000
+    description: Local development
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      security: []
+      summary: Liveness check
+      responses:
+        "200":
+          description: Service is alive
+  /ready:
+    get:
+      security: []
+      summary: Readiness check
+      responses:
+        "200":
+          description: Dependencies are ready
+        "503":
+          description: Dependency is unavailable
+  /v1/transactions:
+    post:
+      summary: Create a transaction
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTransactionRequest"
+      responses:
+        "201":
+          description: Transaction created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "409":
+          description: Idempotency conflict
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/transactions/{id}:
+    get:
+      summary: Get a transaction
+      parameters:
+        - $ref: "#/components/parameters/TransactionId"
+      responses:
+        "200":
+          description: Transaction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "404":
+          description: Transaction not found
+  /v1/transactions/{id}/submit:
+    post:
+      summary: Mark a transaction as submitted
+      parameters:
+        - $ref: "#/components/parameters/TransactionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitRequest"
+      responses:
+        "200":
+          description: Transaction submitted
+  /v1/transactions/{id}/confirm:
+    post:
+      summary: Confirm a submitted transaction after receipt verification
+      parameters:
+        - $ref: "#/components/parameters/TransactionId"
+      responses:
+        "200":
+          description: Transaction confirmed
+        "409":
+          description: Receipt is not confirmed yet or transaction reverted
+  /v1/transactions/{id}/fail:
+    post:
+      summary: Mark a transaction failed
+      parameters:
+        - $ref: "#/components/parameters/TransactionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FailRequest"
+      responses:
+        "200":
+          description: Transaction failed
+  /v1/transactions/{id}/anchor:
+    post:
+      summary: Broadcast an on-chain receipt anchor
+      parameters:
+        - $ref: "#/components/parameters/TransactionId"
+      responses:
+        "202":
+          description: Anchor transaction broadcast; receipt reconciliation continues asynchronously
+        "409":
+          description: Transaction cannot be anchored from its current state
+        "503":
+          description: Blockchain adapter disabled or unavailable
+  /v1/transactions/{id}/events:
+    get:
+      summary: Read projected audit events
+      parameters:
+        - $ref: "#/components/parameters/TransactionId"
+      responses:
+        "200":
+          description: Audit events
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [events]
+                properties:
+                  events:
+                    type: array
+                    items:
+                      type: object
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API_TOKEN
+  parameters:
+    TransactionId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+  responses:
+    Unauthorized:
+      description: Missing or invalid credentials
+  schemas:
+    CreateTransactionRequest:
+      type: object
+      required: [from, to, amount]
+      properties:
+        from:
+          type: string
+          pattern: "^0x[0-9a-fA-F]{40}$"
+        to:
+          type: string
+          pattern: "^0x[0-9a-fA-F]{40}$"
+        amount:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]{1,18})?$"
+    SubmitRequest:
+      type: object
+      required: [txHash]
+      properties:
+        txHash:
+          type: string
+          pattern: "^0x[0-9a-fA-F]{64}$"
+    FailRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+    Transaction:
+      type: object
+      required:
+        - id
+        - idempotencyKey
+        - from
+        - to
+        - amount
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        idempotencyKey:
+          type: string
+        from:
+          type: string
+        to:
+          type: string
+        amount:
+          type: string
+        status:
+          type: string
+          enum: [CREATED, BROADCASTING, SUBMITTED, CONFIRMED, FAILED]
+        txHash:
+          type: [string, "null"]
+        failureReason:
+          type: [string, "null"]
+        attempts:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
