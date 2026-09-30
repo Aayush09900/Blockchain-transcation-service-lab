@@ -69,7 +69,7 @@ export class MySqlTransactionStore {
     try {
       await connection.beginTransaction();
 
-      const [insertResult] = await connection.execute(
+      await connection.execute(
         `INSERT INTO transactions
           (id, idempotency_key, sender, receiver, amount, status)
          VALUES (?, ?, ?, ?, CAST(? AS DECIMAL(65, 18)), 'CREATED')
@@ -83,15 +83,35 @@ export class MySqlTransactionStore {
         ]
       );
 
-      let row;
+      const [rows] = await connection.execute(
+        "SELECT * FROM transactions WHERE idempotency_key = ? FOR UPDATE",
+        [input.idempotencyKey]
+      );
 
-      if (insertResult.affectedRows === 1) {
-        const [created] = await connection.execute(
-          "SELECT * FROM transactions WHERE idempotency_key = ? FOR UPDATE",
-          [input.idempotencyKey]
+      if (rows.length === 0) {
+        const error = new Error("transaction persistence race");
+        error.code = "PERSISTENCE_CONFLICT";
+        error.statusCode = 503;
+        throw error;
+      }
+
+      const row = rows[0];
+      const createdByThisRequest = row.id === id;
+
+      if (
+        row.sender !== input.from ||
+        row.receiver !== input.to ||
+        canonicalDecimal(row.amount) !== input.amount
+      ) {
+        const error = new Error(
+          "idempotency key was already used with a different request"
         );
-        row = created[0];
+        error.code = "IDEMPOTENCY_CONFLICT";
+        error.statusCode = 409;
+        throw error;
+      }
 
+      if (createdByThisRequest) {
         await connection.execute(
           `INSERT INTO transaction_outbox
             (event_id, transaction_id, event_type, payload)
@@ -106,33 +126,6 @@ export class MySqlTransactionStore {
             })
           ]
         );
-      } else {
-        const [existing] = await connection.execute(
-          "SELECT * FROM transactions WHERE idempotency_key = ? FOR UPDATE",
-          [input.idempotencyKey]
-        );
-
-        if (existing.length === 0) {
-          const error = new Error("transaction persistence race");
-          error.code = "PERSISTENCE_CONFLICT";
-          error.statusCode = 503;
-          throw error;
-        }
-
-        row = existing[0];
-
-        if (
-          row.sender !== input.from ||
-          row.receiver !== input.to ||
-          canonicalDecimal(row.amount) !== input.amount
-        ) {
-          const error = new Error(
-            "idempotency key was already used with a different request"
-          );
-          error.code = "IDEMPOTENCY_CONFLICT";
-          error.statusCode = 409;
-          throw error;
-        }
       }
 
       await connection.commit();
