@@ -29,6 +29,7 @@ const mysqlStore = new MySqlTransactionStore({
 
 const chain = EthersReceiptMonitor.fromConfig({
   rpcUrl,
+  rpcUrls: process.env.CHAIN_RPC_URLS,
   chainId: expectedChainId
 });
 
