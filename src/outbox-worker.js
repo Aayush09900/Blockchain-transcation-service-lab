@@ -57,7 +57,11 @@ async function publishBatch() {
       let maxEventLagMs = 0;
 
       for (const event of events) {
-        maxEventLagMs = Math.max(maxEventLagMs, Math.max(0, Date.now() - new Date(event.created_at).getTime()));
+        maxEventLagMs = Math.max(
+          maxEventLagMs,
+          Math.max(0, Date.now() - new Date(event.created_at).getTime())
+        );
+
         try {
           const payload = JSON.parse(event.payload);
 
@@ -92,6 +96,20 @@ async function publishBatch() {
           );
         }
       }
+
+      console.log(JSON.stringify({
+        event: "outbox_batch_processed",
+        claimed: events.length,
+        published: batchPublished,
+        failed: batchFailed,
+        maxEventLagMs,
+        totals: {
+          batchesProcessed,
+          eventsClaimed,
+          eventsPublished,
+          eventsFailed
+        }
+      }));
     } finally {
       inFlight = null;
       processing = false;
