@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   sender VARCHAR(128) NOT NULL,
   receiver VARCHAR(128) NOT NULL,
   amount DECIMAL(65, 18) NOT NULL,
-  status ENUM('CREATED', 'BROADCASTING', 'SUBMITTED', 'CONFIRMED', 'FAILED') NOT NULL,
+  status ENUM('CREATED', 'BROADCASTING', 'SUBMITTED', 'CONFIRMED', 'REORGED', 'FAILED') NOT NULL,
   tx_hash CHAR(66) NULL,
   confirmed_block_number BIGINT UNSIGNED NULL,
   confirmed_block_hash CHAR(66) NULL,
