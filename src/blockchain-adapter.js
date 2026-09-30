@@ -267,17 +267,30 @@ export class EthersBlockchainAdapter {
       return { reorged: true, reason: "confirmed transaction receipt disappeared" };
     }
 
+    const normalizedExpectedHash = String(confirmedBlockHash).toLowerCase();
+    const normalizedReceiptHash = String(receipt.blockHash).toLowerCase();
+
     if (
       receipt.status !== 1 ||
       receipt.blockNumber !== Number(confirmedBlockNumber) ||
-      receipt.blockHash !== confirmedBlockHash
+      normalizedReceiptHash !== normalizedExpectedHash
     ) {
-      return { reorged: true, reason: "confirmed receipt no longer matches canonical evidence" };
+      return {
+        reorged: true,
+        reason: "confirmed receipt no longer matches canonical evidence"
+      };
     }
 
     const canonicalBlock = await this.provider.getBlock(Number(confirmedBlockNumber));
 
-    if (!canonicalBlock || canonicalBlock.hash !== confirmedBlockHash) {
+    if (!canonicalBlock) {
+      const error = new Error("canonical block could not be read for reorg validation");
+      error.code = "BLOCKCHAIN_REORG_CHECK_UNAVAILABLE";
+      error.statusCode = 503;
+      throw error;
+    }
+
+    if (String(canonicalBlock.hash).toLowerCase() !== normalizedExpectedHash) {
       return { reorged: true, reason: "confirmed block is no longer canonical" };
     }
 
@@ -510,17 +523,30 @@ export class EthersReceiptMonitor {
       return { reorged: true, reason: "confirmed transaction receipt disappeared" };
     }
 
+    const normalizedExpectedHash = String(confirmedBlockHash).toLowerCase();
+    const normalizedReceiptHash = String(receipt.blockHash).toLowerCase();
+
     if (
       receipt.status !== 1 ||
       receipt.blockNumber !== Number(confirmedBlockNumber) ||
-      receipt.blockHash !== confirmedBlockHash
+      normalizedReceiptHash !== normalizedExpectedHash
     ) {
-      return { reorged: true, reason: "confirmed receipt no longer matches canonical evidence" };
+      return {
+        reorged: true,
+        reason: "confirmed receipt no longer matches canonical evidence"
+      };
     }
 
     const canonicalBlock = await this.provider.getBlock(Number(confirmedBlockNumber));
 
-    if (!canonicalBlock || canonicalBlock.hash !== confirmedBlockHash) {
+    if (!canonicalBlock) {
+      const error = new Error("canonical block could not be read for reorg validation");
+      error.code = "BLOCKCHAIN_REORG_CHECK_UNAVAILABLE";
+      error.statusCode = 503;
+      throw error;
+    }
+
+    if (String(canonicalBlock.hash).toLowerCase() !== normalizedExpectedHash) {
       return { reorged: true, reason: "confirmed block is no longer canonical" };
     }
 
