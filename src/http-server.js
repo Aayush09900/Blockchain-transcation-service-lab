@@ -326,7 +326,13 @@ const server = http.createServer(async (request, response) => {
 
       const confirmed = await transitionTransaction(
         transactionId,
-        "CONFIRMED"
+        "CONFIRMED",
+        blockchain
+          ? {
+              confirmedBlockNumber: verification.receipt.blockNumber,
+              confirmedBlockHash: verification.receipt.blockHash
+            }
+          : {}
       );
 
       json(response, requestId, 200, confirmed);
