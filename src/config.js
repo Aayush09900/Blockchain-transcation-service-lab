@@ -53,7 +53,11 @@ export function loadConfig(env = process.env) {
   const corsOrigin = String(env.CORS_ORIGIN ?? "").trim();
 
   const blockchainEnabled = booleanValue(env.BLOCKCHAIN_ENABLED, false);
-  const chainRpcUrl = String(env.CHAIN_RPC_URL ?? "").trim();
+  const chainRpcUrls = parseRpcUrls(
+    env.CHAIN_RPC_URLS,
+    env.CHAIN_RPC_URL
+  );
+  const chainRpcUrl = chainRpcUrls[0] ?? "";
   const chainId = env.CHAIN_ID ? Number(env.CHAIN_ID) : undefined;
   const anchorContractAddress = String(
     env.ANCHOR_CONTRACT_ADDRESS ?? ""
@@ -81,25 +85,33 @@ export function loadConfig(env = process.env) {
   }
 
   if (blockchainEnabled) {
-    if (!chainRpcUrl || !anchorContractAddress || !signerPrivateKey || chainId === undefined) {
+    if (
+      chainRpcUrls.length === 0 ||
+      !anchorContractAddress ||
+      !signerPrivateKey ||
+      chainId === undefined
+    ) {
       throw configError(
         "CHAIN_RPC_URL, CHAIN_ID, ANCHOR_CONTRACT_ADDRESS, and CHAIN_SIGNER_PRIVATE_KEY are required when blockchain is enabled"
       );
     }
 
-    let parsedRpcUrl;
-    try {
-      parsedRpcUrl = new URL(chainRpcUrl);
-    } catch {
-      throw configError("CHAIN_RPC_URL must be a valid URL");
-    }
+    for (const rpcUrl of chainRpcUrls) {
+      let parsedRpcUrl;
 
-    if (!["http:", "https:"].includes(parsedRpcUrl.protocol)) {
-      throw configError("CHAIN_RPC_URL must use http or https");
-    }
+      try {
+        parsedRpcUrl = new URL(rpcUrl);
+      } catch {
+        throw configError("CHAIN_RPC_URLS contains an invalid URL");
+      }
 
-    if (production && parsedRpcUrl.protocol !== "https:") {
-      throw configError("CHAIN_RPC_URL must use HTTPS in production");
+      if (!["http:", "https:"].includes(parsedRpcUrl.protocol)) {
+        throw configError("CHAIN_RPC_URLS must use http or https");
+      }
+
+      if (production && parsedRpcUrl.protocol !== "https:") {
+        throw configError("CHAIN_RPC_URLS must use HTTPS in production");
+      }
     }
 
     if (!Number.isInteger(chainId) || chainId < 1) {
@@ -166,9 +178,21 @@ export function loadConfig(env = process.env) {
     ),
     blockchainEnabled,
     chainRpcUrl,
+    chainRpcUrls,
     chainId,
     chainConfirmations,
     anchorContractAddress,
     signerPrivateKey
   });
+}
+
+
+function parseRpcUrls(primaryValue, fallbackValue) {
+  const rawValues = [primaryValue, fallbackValue]
+    .filter((value) => value !== undefined && value !== null)
+    .flatMap((value) => String(value).split(","))
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return Object.freeze([...new Set(rawValues)]);
 }
