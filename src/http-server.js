@@ -217,7 +217,7 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
-    const match = request.url?.match(/^\/v1\/transactions\/([^/]+)$//);
+    const match = request.url?.match(/^\/v1\/transactions\/([^/]+)$/);
 
     if (request.method === "GET" && match) {
       json(
