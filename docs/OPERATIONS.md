@@ -117,7 +117,7 @@ The default is 1. Production deployments should select a confirmation depth appr
 
 ### RPC failover and nonce safety
 
-The blockchain adapter accepts a primary `CHAIN_RPC_URL` plus optional comma-separated `CHAIN_RPC_URLS` backups. ethers `FallbackProvider` is used for provider resilience; the configured primary is preferred before backups. Production RPC endpoints must use HTTPS. citeturn632635view0
+The blockchain adapter accepts a primary `CHAIN_RPC_URL` plus optional comma-separated `CHAIN_RPC_URLS` backups. ethers `FallbackProvider` is used for provider resilience; the configured primary is preferred before backups. The fallback quorum is intentionally `1` so a healthy backup can continue submission when another provider is unavailable; this is an availability control, not Byzantine trust protection. Production RPC endpoints must use HTTPS. citeturn742881view0
 
 The signing path uses ethers `NonceManager` to coordinate nonces within one API process. If a broadcast call fails ambiguously, the local nonce manager is reset so the next attempt refreshes nonce state before allocating a new transaction.
 
