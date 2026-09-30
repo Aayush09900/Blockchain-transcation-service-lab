@@ -131,6 +131,7 @@ export class TransactionService {
       id,
       TransactionStatus.BROADCASTING,
       {
+        txHash: null,
         failureReason: null,
         retryable: false,
         retryCount
