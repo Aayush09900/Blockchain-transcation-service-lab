@@ -278,8 +278,7 @@ const server = http.createServer(async (request, response) => {
           sender: transaction.from,
           receiver: transaction.to,
           amountWei: parseEther(transaction.amount),
-          txHash: transaction.txHash,
-          confirmationDepth: config.chainConfirmations
+          txHash: transaction.txHash
         });
 
         if (!verification.confirmed) {
