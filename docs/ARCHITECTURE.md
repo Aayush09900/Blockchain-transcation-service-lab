@@ -72,8 +72,8 @@ Transaction
     v
 ethers.js adapter
     |
-    +--> JsonRpcProvider
-    +--> Wallet signer
+    +--> FallbackProvider / JsonRpcProvider
+    +--> NonceManager -> Wallet signer
     +--> Contract
     |
     v
@@ -87,6 +87,8 @@ MySQL SUBMITTED -> CONFIRMED/FAILED
 ```
 
 The adapter is isolated in `src/blockchain-adapter.js`. The HTTP submission path never accepts a caller-supplied blockchain transaction hash; the configured signer controls the broadcast.
+
+The adapter uses ethers `FallbackProvider` for multiple configured RPC endpoints and `NonceManager` around the signer. The fallback provider provides backend switching/resilience; the nonce manager serializes nonce allocation inside one process. Cross-instance nonce coordination remains a separate production control. citeturn742881view0turn402323view1
 
 The included Solidity contract is an educational receipt anchor. It stores the transaction identity, sender, receiver and amount and emits an indexed event.
 
@@ -164,8 +166,7 @@ The API stores the broadcast transaction hash as `SUBMITTED` without waiting for
 ## 8. Production next steps
 
 - Dedicated durable queue for blockchain execution
-- RPC failover and health scoring
-- Nonce manager
+- Cross-instance nonce coordination
 - Gas/fee policy
 - Reorg detection
 - On-chain receipt verification
