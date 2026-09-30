@@ -64,6 +64,10 @@ export function loadConfig(env = process.env) {
     throw configError("API_TOKEN must contain at least 32 characters in production");
   }
 
+  if (production && allowManualBlockchainState) {
+    throw configError("ALLOW_MANUAL_BLOCKCHAIN_STATE must be false in production");
+  }
+
   if (production && !mysqlUrl) {
     throw configError("MYSQL_URL is required in production");
   }
