@@ -129,14 +129,6 @@ export function transactionIdToBytes32(transactionId) {
   return id(transactionId);
 }
 
-export function transactionIdBytes32FromUuid(uuid) {
-  if (typeof uuid !== "string") {
-    throw new Error("uuid is required");
-  }
-
-  return `0x${Buffer.from(uuid.replaceAll("-", ""), "hex").toString("hex")}`;
-}
-
 export function validateTransactionHash(hash) {
   if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) {
     throw new Error("invalid transaction hash");
