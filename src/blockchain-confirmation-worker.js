@@ -64,6 +64,7 @@ let failedCount = 0;
 let pendingCount = 0;
 let verificationErrorCount = 0;
 let rpcErrorCount = 0;
+let lastHeartbeatAt = 0;
 
 async function reconcileBatch() {
   if (processing) return;
@@ -186,6 +187,8 @@ async function reconcileBatch() {
         }
       }
     } finally {
+      batchesProcessed += 1;
+
       console.log(JSON.stringify({
         event: "blockchain_confirmation_batch_processed",
         batchSize,
@@ -201,8 +204,6 @@ async function reconcileBatch() {
           rpcErrorCount
         }
       }));
-
-      batchesProcessed += 1;
       inFlight = null;
       processing = false;
     }
@@ -222,21 +223,26 @@ async function loop() {
       }));
     }
 
-    console.log(JSON.stringify({
-      event: "blockchain_confirmation_worker_heartbeat",
-      running,
-      processing,
-      timestamp: new Date().toISOString(),
-      totals: {
-        batchesProcessed,
-        recoveredCount,
-        confirmedCount,
-        failedCount,
-        pendingCount,
-        verificationErrorCount,
-        rpcErrorCount
-      }
-    }));
+    const now = Date.now();
+
+    if (now - lastHeartbeatAt >= 30_000) {
+      lastHeartbeatAt = now;
+      console.log(JSON.stringify({
+        event: "blockchain_confirmation_worker_heartbeat",
+        running,
+        processing,
+        timestamp: new Date(now).toISOString(),
+        totals: {
+          batchesProcessed,
+          recoveredCount,
+          confirmedCount,
+          failedCount,
+          pendingCount,
+          verificationErrorCount,
+          rpcErrorCount
+        }
+      }));
+    }
 
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
