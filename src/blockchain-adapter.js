@@ -76,7 +76,7 @@ export class EthersBlockchainAdapter {
     return true;
   }
 
-  async anchorTransaction({
+  async broadcastAnchorTransaction({
     transactionId,
     sender,
     receiver,
@@ -91,18 +91,53 @@ export class EthersBlockchainAdapter {
       BigInt(amountWei)
     );
 
-    const receipt = await transaction.wait();
+    return {
+      txHash: transaction.hash,
+      transactionId,
+      chainId: (await this.provider.getNetwork()).chainId.toString()
+    };
+  }
+
+  async anchorTransaction({
+    transactionId,
+    sender,
+    receiver,
+    amountWei
+  }) {
+    const broadcast = await this.broadcastAnchorTransaction({
+      transactionId,
+      sender,
+      receiver,
+      amountWei
+    });
+
+    const receipt = await this.provider.waitForTransaction(broadcast.txHash);
 
     if (!receipt || receipt.status !== 1) {
       throw new Error("blockchain transaction failed");
     }
 
     return {
-      txHash: receipt.hash,
+      ...broadcast,
       blockNumber: receipt.blockNumber,
-      blockHash: receipt.blockHash,
-      transactionId: transactionId,
-      chainId: (await this.provider.getNetwork()).chainId.toString()
+      blockHash: receipt.blockHash
+    };
+  }
+
+  async getTransactionReceipt(txHash) {
+    validateTransactionHash(txHash);
+
+    const receipt = await this.provider.getTransactionReceipt(txHash);
+
+    if (!receipt) {
+      return null;
+    }
+
+    return {
+      txHash: receipt.hash,
+      status: receipt.status,
+      blockNumber: receipt.blockNumber,
+      blockHash: receipt.blockHash
     };
   }
 
