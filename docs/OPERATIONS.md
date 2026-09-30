@@ -17,6 +17,8 @@
 - [x] Non-root container
 - [x] CI security validation
 - [x] Repository health check
+- [x] Authenticated Prometheus-format metrics endpoint
+- [x] Structured request and worker telemetry
 
 ## Infrastructure
 
@@ -30,7 +32,7 @@
 - [ ] Private database networking
 - [ ] Managed secret storage
 - [ ] Centralized logs
-- [ ] Metrics and alerting
+- [ ] Centralized metrics scraping and alerting
 - [ ] Backup and restore testing
 
 ## Blockchain
