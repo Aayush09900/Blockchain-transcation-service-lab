@@ -165,3 +165,34 @@ test("production CORS origins must use HTTPS and cannot contain credentials", ()
     /must not contain credentials/
   );
 });
+
+
+test("blockchain confirmation depth defaults to one and is bounded", () => {
+  const base = {
+    NODE_ENV: "production",
+    API_TOKEN: "long-test-token-123456789012345678901234",
+    MYSQL_URL: "mysql://example",
+    MONGO_URL: "mongodb://example",
+    BLOCKCHAIN_ENABLED: "true",
+    CHAIN_RPC_URL: "https://rpc.example",
+    CHAIN_ID: "11155111",
+    ANCHOR_CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000001",
+    CHAIN_SIGNER_PRIVATE_KEY: testPrivateKey
+  };
+
+  assert.equal(loadConfig(base).chainConfirmations, 1);
+  assert.equal(
+    loadConfig({ ...base, CHAIN_CONFIRMATIONS: "6" }).chainConfirmations,
+    6
+  );
+
+  assert.throws(
+    () => loadConfig({ ...base, CHAIN_CONFIRMATIONS: "0" }),
+    /CHAIN_CONFIRMATIONS must be an integer between 1 and 1000/
+  );
+
+  assert.throws(
+    () => loadConfig({ ...base, CHAIN_CONFIRMATIONS: "1001" }),
+    /CHAIN_CONFIRMATIONS must be an integer between 1 and 1000/
+  );
+});
