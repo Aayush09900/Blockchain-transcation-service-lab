@@ -28,7 +28,7 @@ function anchorTransaction({ amount = 7n, transactionId = TRANSACTION_ID } = {})
   };
 }
 
-function monitorFor({ transaction, receipt, getTransactionError } = {}) {
+function monitorFor({ transaction, receipt, getTransactionError, currentBlock } = {}) {
   return new EthersReceiptMonitor({
     provider: {
       async getTransaction() {
@@ -37,6 +37,9 @@ function monitorFor({ transaction, receipt, getTransactionError } = {}) {
       },
       async getTransactionReceipt() {
         return receipt;
+      },
+      async getBlockNumber() {
+        return currentBlock ?? receipt?.blockNumber ?? 0;
       }
     }
   });
