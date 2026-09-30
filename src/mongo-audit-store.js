@@ -104,41 +104,124 @@ export class MongoAuditStore {
     await this.ensureConnected();
 
     const updatedAt = new Date(transaction.updatedAt);
+    const createdAt = new Date(transaction.createdAt);
 
     await this.transactions.updateOne(
       { transactionId: transaction.id },
-      {
-        $setOnInsert: {
-          transactionId: transaction.id,
-          updatedAt: new Date(0),
-          createdAt: new Date(transaction.createdAt)
+      [
+        {
+          $set: {
+            transactionId: transaction.id,
+            createdAt: {
+              $cond: [
+                { $eq: [{ $type: "$createdAt" }, "missing"] },
+                createdAt,
+                "$createdAt"
+              ]
+            },
+            status: {
+              $cond: [
+                {
+                  $or: [
+                    { $eq: [{ $type: "$updatedAt" }, "missing"] },
+                    { $lt: ["$updatedAt", updatedAt] }
+                  ]
+                },
+                transaction.status,
+                "$status"
+              ]
+            },
+            from: {
+              $cond: [
+                {
+                  $or: [
+                    { $eq: [{ $type: "$updatedAt" }, "missing"] },
+                    { $lt: ["$updatedAt", updatedAt] }
+                  ]
+                },
+                transaction.from,
+                "$from"
+              ]
+            },
+            to: {
+              $cond: [
+                {
+                  $or: [
+                    { $eq: [{ $type: "$updatedAt" }, "missing"] },
+                    { $lt: ["$updatedAt", updatedAt] }
+                  ]
+                },
+                transaction.to,
+                "$to"
+              ]
+            },
+            amount: {
+              $cond: [
+                {
+                  $or: [
+                    { $eq: [{ $type: "$updatedAt" }, "missing"] },
+                    { $lt: ["$updatedAt", updatedAt] }
+                  ]
+                },
+                transaction.amount,
+                "$amount"
+              ]
+            },
+            txHash: {
+              $cond: [
+                {
+                  $or: [
+                    { $eq: [{ $type: "$updatedAt" }, "missing"] },
+                    { $lt: ["$updatedAt", updatedAt] }
+                  ]
+                },
+                transaction.txHash ?? null,
+                "$txHash"
+              ]
+            },
+            attempts: {
+              $cond: [
+                {
+                  $or: [
+                    { $eq: [{ $type: "$updatedAt" }, "missing"] },
+                    { $lt: ["$updatedAt", updatedAt] }
+                  ]
+                },
+                transaction.attempts,
+                "$attempts"
+              ]
+            },
+            failureReason: {
+              $cond: [
+                {
+                  $or: [
+                    { $eq: [{ $type: "$updatedAt" }, "missing"] },
+                    { $lt: ["$updatedAt", updatedAt] }
+                  ]
+                },
+                transaction.failureReason ?? null,
+                "$failureReason"
+              ]
+            },
+            updatedAt: {
+              $cond: [
+                {
+                  $or: [
+                    { $eq: [{ $type: "$updatedAt" }, "missing"] },
+                    { $lt: ["$updatedAt", updatedAt] }
+                  ]
+                },
+                updatedAt,
+                "$updatedAt"
+              ]
+            }
+          }
         }
-      },
-      { upsert: true, writeConcern: { w: "majority" } }
-    );
-
-    await this.transactions.updateOne(
+      ],
       {
-        transactionId: transaction.id,
-        $or: [
-          { updatedAt: { $exists: false } },
-          { updatedAt: { $lt: updatedAt } }
-        ]
-      },
-      {
-        $set: {
-          transactionId: transaction.id,
-          status: transaction.status,
-          from: transaction.from,
-          to: transaction.to,
-          amount: transaction.amount,
-          txHash: transaction.txHash ?? null,
-          attempts: transaction.attempts,
-          failureReason: transaction.failureReason ?? null,
-          updatedAt
-        }
-      },
-      { writeConcern: { w: "majority" } }
+        upsert: true,
+        writeConcern: { w: "majority" }
+      }
     );
   }
 
