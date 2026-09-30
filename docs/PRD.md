@@ -35,6 +35,7 @@ Ambiguous blockchain/RPC outcomes must be reconciled rather than automatically t
 ## API
 - GET /health
 - GET /ready
+- GET /metrics (authenticated, Prometheus exposition format)
 - POST /v1/transactions
 - POST /v1/transactions/:id/submit
 - POST /v1/transactions/:id/confirm
@@ -50,6 +51,7 @@ Ambiguous blockchain/RPC outcomes must be reconciled rather than automatically t
 - Secrets must never be committed or persisted.
 - APIs require validation, authentication, authorization, rate limiting, secure headers, and safe errors.
 - Correlation must connect requestId, transactionId, eventId, and txHash.
+- Operational telemetry must avoid high-cardinality identifiers such as transaction IDs in metric labels.
 - CI must run tests, build, and security checks.
 
 ## Out of scope
