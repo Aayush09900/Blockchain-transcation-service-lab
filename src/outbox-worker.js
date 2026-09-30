@@ -36,13 +36,14 @@ const batchSize = Math.max(
 
 let running = true;
 let processing = false;
+let inFlight = null;
 
 async function publishBatch() {
   if (processing) return;
 
   processing = true;
-
-  try {
+  inFlight = (async () => {
+    try {
     const events = await mysqlStore.claimOutboxBatch(batchSize);
 
     for (const event of events) {
@@ -68,9 +69,13 @@ async function publishBatch() {
         );
       }
     }
-  } finally {
-    processing = false;
-  }
+    } finally {
+      inFlight = null;
+      processing = false;
+    }
+  })();
+
+  await inFlight;
 }
 
 async function loop() {
@@ -95,6 +100,15 @@ async function shutdown(signal) {
     event: "outbox_worker_shutdown",
     signal
   }));
+
+  if (inFlight) {
+    await inFlight.catch((error) => {
+      console.error(JSON.stringify({
+        event: "outbox_worker_shutdown",
+        message: sanitizeError(error)
+      }));
+    });
+  }
 
   await Promise.allSettled([
     mysqlStore.close(),
