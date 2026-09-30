@@ -1,11 +1,15 @@
 import { MySqlTransactionStore } from "./mysql-store.js";
+import { parseEther } from "ethers";
 import { EthersReceiptMonitor } from "./blockchain-adapter.js";
+import { sanitizeError } from "./logging.js";
 
 const mysqlUrl = process.env.MYSQL_URL;
 const rpcUrl = process.env.CHAIN_RPC_URL;
 const expectedChainId = process.env.CHAIN_ID
   ? Number(process.env.CHAIN_ID)
   : undefined;
+const anchorContractAddress =
+  process.env.ANCHOR_CONTRACT_ADDRESS || undefined;
 
 if (!mysqlUrl || !rpcUrl) {
   throw new Error(
@@ -49,26 +53,38 @@ async function reconcileBatch() {
 
     for (const transaction of transactions) {
       try {
-        const receipt = await chain.getTransactionReceipt(transaction.txHash);
-
-        if (!receipt) {
-          continue;
-        }
-
-        if (receipt.status === 1) {
-          await mysqlStore.transition(transaction.id, "CONFIRMED");
-          continue;
-        }
-
-        await mysqlStore.transition(transaction.id, "FAILED", {
-          failureReason: "blockchain transaction reverted"
+        const verification = await chain.verifySubmittedTransaction({
+          transactionId: transaction.id,
+          sender: transaction.from,
+          receiver: transaction.to,
+          amountWei: amountToWei(transaction.amount),
+          txHash: transaction.txHash,
+          anchorContractAddress
         });
+
+        if (!verification.confirmed) {
+          if (verification.reverted) {
+            await mysqlStore.transition(transaction.id, "FAILED", {
+              failureReason: "blockchain transaction reverted"
+            });
+          }
+          continue;
+        }
+
+        await mysqlStore.transition(transaction.id, "CONFIRMED");
       } catch (error) {
+        if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
+          await mysqlStore.transition(transaction.id, "FAILED", {
+            failureReason: "blockchain transaction verification failed"
+          });
+          continue;
+        }
+
         console.error(JSON.stringify({
           event: "blockchain_confirmation_error",
           transactionId: transaction.id,
           txHash: transaction.txHash,
-          message: error instanceof Error ? error.message : String(error)
+          message: sanitizeError(error)
         }));
       }
     }
@@ -116,3 +132,7 @@ console.log(JSON.stringify({
 }));
 
 await loop();
+
+function amountToWei(amount) {
+  return parseEther(amount);
+}
