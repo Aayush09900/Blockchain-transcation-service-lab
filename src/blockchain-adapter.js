@@ -2,6 +2,7 @@ import {
   Contract,
   Interface,
   JsonRpcProvider,
+  Transaction,
   Wallet,
   getAddress,
   getBytes,
