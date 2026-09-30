@@ -15,6 +15,18 @@ export function toPublicHttpError(error) {
     return { statusCode: 400, message: "invalid transaction id" };
   }
 
+  if (error?.code === "TX_HASH_MISMATCH") {
+    return { statusCode: 409, message: "transaction hash mismatch" };
+  }
+
+  if (error?.code === "PERSISTENCE_CONFLICT") {
+    return { statusCode: 503, message: "transaction persistence unavailable" };
+  }
+
+  if (error?.code === "VALIDATION_ERROR") {
+    return { statusCode: 400, message: error.message };
+  }
+
   if (error?.statusCode && error.statusCode >= 400 && error.statusCode < 500) {
     return {
       statusCode: error.statusCode,
