@@ -1,13 +1,14 @@
 {
   "name": "blockchain-transaction-service-lab",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
-  "description": "Learning lab for reliable blockchain transaction processing with idempotency, lifecycle controls, API security, PostgreSQL persistence, and operational hardening",
+  "description": "Blockchain transaction processing service lab with idempotency, PostgreSQL persistence, API security, testing, and production-oriented operational controls",
   "type": "module",
   "scripts": {
     "test": "node --test",
     "start": "node src/http-server.js",
-    "start:core": "node src/transaction-service.js"
+    "start:core": "node src/transaction-service.js",
+    "verify": "node scripts/repo-health-check.js"
   },
   "dependencies": {
     "pg": "^8.23.0"
