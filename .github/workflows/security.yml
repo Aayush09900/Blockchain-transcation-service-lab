@@ -16,15 +16,15 @@ concurrency:
 
 jobs:
   security:
-    name: Security validation
+    name: Security and contract validation
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: 22
 
@@ -33,13 +33,19 @@ jobs:
 
       - name: Syntax check
         run: |
-          find src -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+          find src scripts test -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 
       - name: Dependency audit
         run: npm audit --audit-level=high
 
-      - name: Test suite
+      - name: Application security tests
         run: npm test
+
+      - name: Hardhat compile
+        run: npm run chain:compile
+
+      - name: Hardhat tests
+        run: npm run test:hardhat:ci
 
       - name: Repository health check
         run: npm run verify
