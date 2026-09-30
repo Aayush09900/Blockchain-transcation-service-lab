@@ -37,6 +37,11 @@ const batchSize = Math.max(
 let running = true;
 let processing = false;
 let inFlight = null;
+let batchesProcessed = 0;
+let eventsClaimed = 0;
+let eventsPublished = 0;
+let eventsFailed = 0;
+let lastHeartbeatAt = 0;
 
 async function publishBatch() {
   if (processing) return;
@@ -45,8 +50,14 @@ async function publishBatch() {
   inFlight = (async () => {
     try {
       const events = await mysqlStore.claimOutboxBatch(batchSize);
+      batchesProcessed += 1;
+      eventsClaimed += events.length;
+      let batchPublished = 0;
+      let batchFailed = 0;
+      let maxEventLagMs = 0;
 
       for (const event of events) {
+        maxEventLagMs = Math.max(maxEventLagMs, Math.max(0, Date.now() - new Date(event.created_at).getTime()));
         try {
           const payload = JSON.parse(event.payload);
 
@@ -56,13 +67,33 @@ async function publishBatch() {
             eventType: event.event_type,
             payload,
             occurredAt: event.created_at
-          });
+          console.log(JSON.stringify({
+        event: "outbox_batch_processed",
+        claimed: events.length,
+        published: batchPublished,
+        failed: batchFailed,
+        maxEventLagMs,
+        totals: { batchesProcessed, eventsClaimed, eventsPublished, eventsFailed }
+      }));
+    });
 
           const transaction = await mysqlStore.get(event.transaction_id);
           await mongoStore.upsertSnapshot(transaction);
 
           await mysqlStore.markOutboxPublished(event.id);
+          eventsPublished += 1;
+          batchPublished += 1;
         } catch (error) {
+          eventsFailed += 1;
+          batchFailed += 1;
+
+          console.error(JSON.stringify({
+            event: "outbox_event_failed",
+            eventId: event.event_id,
+            transactionId: event.transaction_id,
+            eventType: event.event_type,
+            message: sanitizeError(error)
+          }));
           await mysqlStore.markOutboxFailed(
             event.id,
             sanitizeError(error)
@@ -89,6 +120,17 @@ async function loop() {
       }));
     }
 
+    const now = Date.now();
+    if (now - lastHeartbeatAt >= 30_000) {
+      lastHeartbeatAt = now;
+      console.log(JSON.stringify({
+        event: "outbox_worker_heartbeat",
+        timestamp: new Date(now).toISOString(),
+        running,
+        processing,
+        totals: { batchesProcessed, eventsClaimed, eventsPublished, eventsFailed }
+      }));
+    }
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
 }
