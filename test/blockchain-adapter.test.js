@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { FallbackProvider } from "ethers";
 import { id, Interface } from "ethers";
-import { EthersReceiptMonitor } from "../src/blockchain-adapter.js";
+import {
+  EthersReceiptMonitor,
+  createRpcProvider
+} from "../src/blockchain-adapter.js";
 
 const CONTRACT = "0x00000000000000000000000000000000000000c1";
 const SENDER = "0x0000000000000000000000000000000000000001";
@@ -44,6 +48,19 @@ function monitorFor({ transaction, receipt, getTransactionError, currentBlock } 
     }
   });
 }
+
+test("multiple RPC endpoints create a failover provider", () => {
+  const provider = createRpcProvider({
+    rpcUrls: "https://primary.example,https://secondary.example",
+    chainId: 11155111
+  });
+
+  assert.equal(provider instanceof FallbackProvider, true);
+  assert.equal(provider.providerConfigs.length, 2);
+  assert.equal(provider.quorum, 1);
+
+  provider.destroy();
+});
 
 test("pending receipt is not treated as confirmation", async () => {
   const monitor = monitorFor({
