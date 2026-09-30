@@ -1,0 +1,41 @@
+name: Security Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-workflow
+  cancel-in-progress: true
+
+jobs:
+  security:
+    name: Security validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+
+      - name: Syntax check
+        run: node --check src/transaction-service.js
+
+      - name: Test suite
+        run: npm test
