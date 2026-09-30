@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { id, Interface } from "ethers";
-import { EthersReceiptMonitor } from "../src/blockchain-adapter.js";
+import {
+  EthersBlockchainAdapter,
+  EthersReceiptMonitor
+} from "../src/blockchain-adapter.js";
 
 const CONTRACT = "0x00000000000000000000000000000000000000c1";
 const SENDER = "0x0000000000000000000000000000000000000001";
@@ -159,4 +162,28 @@ test("on-chain payload mismatch is rejected even with a successful receipt", asy
     }),
     /anchor payload does not match transaction/
   );
+});
+
+
+test("adapter uses fallback RPC provider and managed signer nonce state", () => {
+  const adapter = EthersBlockchainAdapter.fromConfig({
+    rpcUrl: "https://primary.example",
+    rpcUrls: "https://backup-a.example,https://backup-b.example",
+    privateKey: "0x" + "11".repeat(32),
+    contractAddress: CONTRACT,
+    chainId: 11155111
+  });
+
+  assert.equal(adapter.provider.constructor.name, "FallbackProvider");
+  assert.equal(adapter.signer.constructor.name, "NonceManager");
+});
+
+test("monitor uses fallback RPC provider when multiple endpoints are configured", () => {
+  const monitor = EthersReceiptMonitor.fromConfig({
+    rpcUrl: "https://primary.example",
+    rpcUrls: "https://backup-a.example,https://backup-b.example",
+    chainId: 11155111
+  });
+
+  assert.equal(monitor.provider.constructor.name, "FallbackProvider");
 });
