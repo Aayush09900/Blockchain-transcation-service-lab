@@ -25,8 +25,9 @@ Blockchain operations are asynchronous and can encounter duplicate requests, RPC
 8. Anchor receipt information on-chain.
 
 ## Lifecycle
-CREATED -> SUBMITTED -> CONFIRMED
+CREATED -> BROADCASTING -> SUBMITTED -> CONFIRMED
 CREATED -> FAILED
+CREATED -> BROADCASTING -> FAILED
 SUBMITTED -> FAILED
 
 Ambiguous blockchain/RPC outcomes must be reconciled rather than automatically treated as failure.
