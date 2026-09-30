@@ -61,7 +61,7 @@ test(
         idempotencyKey: key,
         from: "0x0000000000000000000000000000000000000001",
         to: "0x0000000000000000000000000000000000000002",
-        amount: "12345678901234567890"
+        amount: "1234567890.123456789"
       });
 
       assert.equal(duplicate.id, id);
@@ -91,7 +91,10 @@ test(
       const confirmed = await store.transition(id, "CONFIRMED");
 
       assert.equal(confirmed.status, "CONFIRMED");
-      assert.equal(confirmed.txHash, "0xintegrationhash");
+      assert.equal(
+      confirmed.txHash,
+      "0x2222222222222222222222222222222222222222222222222222222222222222"
+    );
 
       await assert.rejects(
         () => store.transition(id, "FAILED", { failureReason: "too late" }),
