@@ -81,6 +81,32 @@ test("moves SUBMITTED to CONFIRMED", () => {
   assert.equal(confirmed.status, TransactionStatus.CONFIRMED);
 });
 
+test("allows a confirmed transaction to enter reorg recovery", () => {
+  const service = new TransactionService();
+  const tx = service.submit({
+    idempotencyKey: "reorged",
+    from: "0x0000000000000000000000000000000000000001",
+    to: "0x0000000000000000000000000000000000000002",
+    amount: "100"
+  });
+
+  service.markSubmitted(
+    tx.id,
+    "0x1111111111111111111111111111111111111111111111111111111111111111"
+  );
+  service.markConfirmed(tx.id);
+
+  const reorged = service.transition(tx.id, "REORGED", {
+    failureReason: "confirmed block was reorganized"
+  });
+
+  assert.equal(reorged.status, "REORGED");
+  assert.equal(reorged.failureReason, "confirmed block was reorganized");
+
+  const reconfirmed = service.transition(tx.id, "CONFIRMED");
+  assert.equal(reconfirmed.status, "CONFIRMED");
+});
+
 test("does not allow a confirmed transaction to become failed", () => {
   const service = new TransactionService();
   const tx = service.submit({
