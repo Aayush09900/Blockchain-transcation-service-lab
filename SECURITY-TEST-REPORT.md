@@ -53,6 +53,16 @@ The repository was re-checked across:
 | SEC-28 | Concurrent submit/claim errors could be reported as blockchain broadcast ambiguity | Medium | Broadcast-ambiguity wrapping is now limited to actual broadcast and post-broadcast persistence failures; initial BROADCASTING claim errors propagate unchanged |
 | SEC-29 | Single-RPC dependency and concurrent signer calls could create availability or nonce-collision risk | High | Added multi-RPC FallbackProvider support and process-local NonceManager serialization; distributed nonce coordination remains a deployment requirement |
 
+## Current observability controls
+
+- Authenticated `/metrics` endpoint.
+- Low-cardinality HTTP request counters and latency histogram.
+- Broadcast and verification outcome counters.
+- Outbox event-lag and publish/failure telemetry.
+- Confirmation/reorg/recovery outcome telemetry.
+- Throttled worker heartbeats.
+- Centralized log sanitization remains the boundary for worker error messages.
+
 ## Current architecture
 
 ```
