@@ -24,7 +24,7 @@ const requiredFiles = [
   "src/outbox-worker.js",
   "hardhat.config.js",
   "contracts/TransactionReceiptAnchor.sol",
-  "test/hardhat/TransactionReceiptAnchor.test.js",
+  "hardhat-tests/TransactionReceiptAnchor.test.js",
   "src/validation.js",
   "test/transaction-service.test.js",
   "test/config.test.js",
