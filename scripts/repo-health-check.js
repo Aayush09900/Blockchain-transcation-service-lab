@@ -107,6 +107,7 @@ const secretPatterns = [
 
 for (const file of trackedFiles) {
   if (
+    file === ".env.example" ||
     file.includes("node_modules/") ||
     file.endsWith(".lock")
   ) {
