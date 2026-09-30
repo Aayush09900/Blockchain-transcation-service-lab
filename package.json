@@ -12,7 +12,8 @@
     "start": "node src/http-server.js",
     "start:core": "node src/transaction-service.js",
     "start:outbox": "node src/outbox-worker.js",
-    "verify": "node scripts/repo-health-check.js"
+    "verify": "node scripts/repo-health-check.js",
+    "start:confirm-worker": "node src/blockchain-confirmation-worker.js"
   },
   "dependencies": {
     "ethers": "6.17.0",
