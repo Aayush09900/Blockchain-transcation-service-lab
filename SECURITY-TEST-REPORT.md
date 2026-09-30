@@ -44,7 +44,8 @@ The repository was re-checked across:
 | SEC-19 | Runtime image included npm CLI dependency tree with high/critical findings | High | Updated Node LTS base and removed npm/npx from runtime image after dependency installation |
 | SEC-20 | Container services retained unnecessary Linux privileges | Medium | Added no-new-privileges, dropped capabilities, read-only root filesystem and hardened /tmp |
 | SEC-21 | Numeric JSON amounts could be coerced before validation | High | Amount validation now requires decimal strings to prevent floating-point precision loss |
-| SEC-22 | Lockfile bootstrap relied on setup-node automatic npm cache detection while no lockfile was committed | Medium | Removed the fragile bootstrap workflow and disabled package-manager cache in CI/security workflows |
+| SEC-22 | Lockfile bootstrap relied on setup-node automatic npm cache detection while no lockfile was committed | Medium | Replaced it with a committed lockfile and switched CI/security/runtime installs to `npm ci` |
+| SEC-23 | Concurrent outbox workers could claim the same event simultaneously | High | Added MySQL leases with `FOR UPDATE SKIP LOCKED`, worker ownership, and lease expiry recovery |
 | SEC-23 | Supply-chain scanning was limited to npm audit and container scanning | Medium | Added CodeQL for JavaScript/TypeScript and a dependency-review gate/notice workflow |
 | SEC-24 | Repository health check did not enforce immutable GitHub Action references or lockfile presence | Medium | Health check now requires package-lock.json, security workflows, and full 40-character action commit SHAs |
 
