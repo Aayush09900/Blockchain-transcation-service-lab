@@ -1,44 +1,47 @@
 # Blockchain Transaction Service Lab
 
-A security-conscious backend engineering lab for reliable blockchain transaction processing.
+A production-oriented backend engineering lab for reliable blockchain transaction processing.
 
-The project focuses on the boundary between an API request and an on-chain confirmation:
+The design separates four concerns:
 
-`API request -> security edge -> idempotency -> state machine -> persistence -> worker -> blockchain/RPC -> confirmation -> reconciliation`
+1. MySQL for authoritative transaction state and idempotency.
+2. MongoDB for an audit/event read model.
+3. ethers.js for controlled Ethereum interaction.
+4. Hardhat 3 for contract and blockchain integration testing.
 
-## Current capabilities
+The core flow is:
 
-- Idempotency keys with conflict detection
-- Canonical exact-string transaction amounts
-- Explicit transaction lifecycle and invalid-transition protection
-- PostgreSQL persistence with transactional writes
-- Transaction event/audit records
-- HTTP API with bearer-token authentication
-- Request ID propagation
-- Strict transaction-path UUID validation
-- Request body limits and JSON content-type validation
-- Bounded in-memory rate limiting
-- Security response headers and CORS allowlisting
-- Health and readiness endpoints
-- Graceful shutdown
-- Non-root production container
-- Docker Compose PostgreSQL development stack
-- CI unit tests and PostgreSQL integration tests
-- Dependency audit
-- Repository structure and secret health checks
-- Security vulnerability regression suite
-- Architecture, API, operations, and security documentation
+`API -> security edge -> MySQL transaction state -> MySQL outbox -> MongoDB audit -> ethers.js -> Ethereum`
 
-## Project structure
+## Technology stack
+
+| Layer | Technology | Responsibility |
+| --- | --- | --- |
+| API | Node.js HTTP | Request handling |
+| Primary database | MySQL 8.4 | Transactions, idempotency, outbox |
+| Audit/read model | MongoDB | Transaction events and snapshots |
+| Blockchain SDK | ethers.js 6.17 | RPC, wallet, contract interaction |
+| Blockchain testing | Hardhat 3.18 | Local Ethereum simulation and contract tests |
+| Contract | Solidity 0.8.28 | On-chain receipt anchoring |
+| Runtime | Docker | Repeatable deployment |
+| CI | GitHub Actions | Tests, security, container build |
+
+MySQL2 supports pooled connections, prepared statements, Promise APIs and SSL, which fits the transaction-state workload. citeturn933955search0turn933955search2 MongoDB is used as an audit/read model rather than the financial source of truth; its Node driver supports idempotent writes and ACID transactions when needed. citeturn849922search0turn849922search4 ethers.js provides JSON-RPC providers and contract interaction, and Hardhat 3 provides both Solidity and TypeScript/JavaScript testing workflows. citeturn893206search0turn590372search1
+
+## Repository structure
 
 ```
 .
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml
-│       └── security.yml
+│       ├── security.yml
+│       └── publish-image.yml
+├── contracts/
+│   └── TransactionReceiptAnchor.sol
 ├── db/
-│   └── 001_init.sql
+│   └── mysql/
+│       └── 001_init.sql
 ├── docs/
 │   ├── API.md
 │   ├── ARCHITECTURE.md
@@ -47,96 +50,114 @@ The project focuses on the boundary between an API request and an on-chain confi
 ├── scripts/
 │   └── repo-health-check.js
 ├── src/
+│   ├── blockchain-adapter.js
 │   ├── config.js
 │   ├── http-errors.js
 │   ├── http-server.js
+│   ├── mongo-audit-store.js
+│   ├── mysql-store.js
+│   ├── outbox-worker.js
 │   ├── path-security.js
-│   ├── postgres-store.js
 │   ├── security.js
 │   ├── transaction-service.js
 │   └── validation.js
 ├── test/
+│   ├── hardhat/
+│   │   └── TransactionReceiptAnchor.test.js
 │   ├── config.test.js
-│   ├── postgres-store.integration.test.js
+│   ├── mongo-audit-store.integration.test.js
+│   ├── mysql-store.integration.test.js
 │   ├── security-vulnerabilities.test.js
 │   └── transaction-service.test.js
 ├── Dockerfile
 ├── docker-compose.yml
+├── hardhat.config.js
 ├── package.json
-├── SECURITY-TEST-REPORT.md
-└── SECURITY.md
+├── README.md
+├── SECURITY.md
+└── SECURITY-TEST-REPORT.md
 ```
 
 ## Transaction lifecycle
 
 `CREATED -> SUBMITTED -> CONFIRMED`
 
-A transaction can move to `FAILED` from `CREATED` or `SUBMITTED`.
+A transaction may move to `FAILED` from `CREATED` or `SUBMITTED`.
 
 Terminal states are protected from invalid rewrites.
 
 ## System architecture
 
 ```
-Client/API
-   |
-   v
-Security Edge
-   |
-   +--> Authentication
-   +--> Rate Limiting
-   +--> Input Validation
-   +--> Path Validation
-   |
-   v
-Transaction Service
-   |
-   +--> Idempotency
-   +--> State Machine
-   |
-   v
-PostgreSQL
-   |
-   +--> Transactions
-   +--> Idempotency Constraint
-   +--> Transaction Events / Audit
-   |
-   v
-Queue / Worker boundary
-   |
-   v
-Blockchain / RPC
-   |
-   v
-Confirmation / Event Listener
-   |
-   v
-Reconciliation / Monitoring
+                         Client
+                           |
+                           v
+                 +-------------------+
+                 |    Security Edge  |
+                 | Auth / Rate Limit |
+                 | Validation / CORS|
+                 +---------+---------+
+                           |
+                           v
+                 +-------------------+
+                 | Transaction API   |
+                 +---------+---------+
+                           |
+                           v
+                 +-------------------+
+                 |      MySQL        |
+                 | Source of Truth   |
+                 | Idempotency       |
+                 | Transaction State |
+                 | Outbox            |
+                 +---------+---------+
+                           |
+                +----------+----------+
+                |                     |
+                v                     v
+        +---------------+     +---------------+
+        | Outbox Worker |     | Transaction   |
+        | Retry/Publish |     | API Read Path |
+        +-------+-------+     +---------------+
+                |
+                v
+        +---------------+
+        |   MongoDB     |
+        | Audit/Event   |
+        | Read Model    |
+        +---------------+
+
+Blockchain execution path:
+
+MySQL transaction
+      |
+      v
+ethers.js adapter
+      |
+      v
+Ethereum RPC
+      |
+      v
+TransactionReceiptAnchor.sol
+      |
+      v
+receipt / tx hash
+      |
+      v
+MySQL state + outbox event
 ```
 
-The repository currently implements the security edge, transaction service, PostgreSQL persistence, and test/CI layers. Queue/worker execution, live blockchain submission, confirmation monitoring, and reconciliation remain separate production components to implement and operate.
+The financial/transaction state remains in MySQL. MongoDB is deliberately not the source of truth. The MySQL outbox provides a reliable handoff to the MongoDB audit model. The ethers.js adapter is isolated from HTTP and database code.
 
-## Run locally
+## Local development
 
-### Core tests
+### 1. Install
 
 ```bash
 npm install
-npm test
-npm run verify
 ```
 
-### Development server
-
-PowerShell:
-
-```powershell
-$env:NODE_ENV="development"
-$env:API_TOKEN="change-me"
-npm start
-```
-
-### Local PostgreSQL stack
+### 2. Start infrastructure
 
 Copy `.env.example` to `.env`, replace the placeholder credentials, then:
 
@@ -144,16 +165,44 @@ Copy `.env.example` to `.env`, replace the placeholder credentials, then:
 docker compose up --build
 ```
 
-The API is intentionally bound to `127.0.0.1:3000` by the compose file.
+The API is bound to `127.0.0.1:3000`.
+
+### 3. Run application tests
+
+```bash
+npm test
+```
+
+### 4. Run Hardhat tests
+
+```bash
+npm run test:hardhat
+```
+
+### 5. Run all validation
+
+```bash
+npm run chain:compile
+npm test
+npm run test:hardhat:ci
+npm run verify
+```
+
+## API
 
 ### Health
 
 ```
-GET http://localhost:3000/health
-GET http://localhost:3000/ready
+GET /health
 ```
 
-### Create a transaction
+### Readiness
+
+```
+GET /ready
+```
+
+### Create transaction
 
 ```
 POST /v1/transactions
@@ -164,63 +213,97 @@ Content-Type: application/json
 {
   "from": "0xsender",
   "to": "0xreceiver",
-  "amount": "1000000000000000"
+  "amount": "0.001"
 }
+```
+
+### Submit
+
+```
+POST /v1/transactions/:id/submit
+Authorization: Bearer <API_TOKEN>
+
+{
+  "txHash": "0x..."
+}
+```
+
+### Confirm
+
+```
+POST /v1/transactions/:id/confirm
+Authorization: Bearer <API_TOKEN>
+```
+
+### Fail
+
+```
+POST /v1/transactions/:id/fail
+Authorization: Bearer <API_TOKEN>
+
+{
+  "reason": "RPC timeout"
+}
+```
+
+### On-chain anchor
+
+When the ethers.js adapter is enabled:
+
+```
+POST /v1/transactions/:id/anchor
+Authorization: Bearer <API_TOKEN>
+```
+
+This writes an on-chain receipt anchor for the transaction record. It is not a custody or user-fund transfer function.
+
+### Audit events
+
+```
+GET /v1/transactions/:id/events
+Authorization: Bearer <API_TOKEN>
 ```
 
 ## Security model
 
-The project uses defense in depth:
+The application uses layered controls:
 
-1. Network firewall or cloud security group
-2. TLS at the deployment edge
-3. Authentication
-4. Rate limiting
-5. Request validation
-6. Strict path validation
-7. Idempotency
-8. Explicit state transitions
-9. PostgreSQL transactional persistence
-10. Secret management outside source control
-11. Audit events and request IDs
-12. CI security validation
+- Authentication boundary
+- Bounded rate limiting
+- Strict JSON/body validation
+- UUID-only transaction paths
+- Exact decimal-string handling
+- Idempotency enforcement
+- MySQL row-level transaction locking
+- MySQL unique constraints
+- MySQL outbox
+- MongoDB majority writes
+- ethers.js chain ID validation
+- Production secret validation
+- Security headers and CORS allowlisting
+- CI dependency audit
+- Hardhat contract tests
+- Repository secret scanning
 
-The application does not pretend to be a network firewall. Infrastructure firewall rules, private subnets, TLS termination, and secret-manager integration belong to the deployment environment.
+Infrastructure firewall rules, TLS certificates, private subnets, managed secrets, backups and alerting must be configured at the deployment platform.
 
-## Security testing
+## Production boundary
 
-Run:
+The repository is now structured as a production-oriented transaction service, but production custody requires additional operational controls:
 
-```bash
-npm test
-```
+- durable job queue and workers
+- RPC failover
+- nonce management
+- fee policy
+- chain allowlisting
+- receipt/confirmation depth
+- reorg handling
+- reconciliation
+- distributed rate limiting
+- metrics, tracing and alerting
+- managed secret storage
+- database backups and tested restore
+- disaster recovery
+- independent security review
 
-Security regression coverage includes path traversal probes, malformed URL encoding, authentication boundaries, rate-limit pressure, security headers, configuration invariants, and internal error disclosure.
-
-See:
-
-`SECURITY-TEST-REPORT.md`
-
-## Production readiness
-
-This repository is now a production-oriented engineering foundation, but it is not presented as a production custody service.
-
-Before handling real funds, the following must still be implemented and independently reviewed:
-
-- Durable queue and worker processing
-- Retry/backoff and dead-letter handling
-- Blockchain RPC failover
-- Nonce and fee management
-- Chain allowlisting
-- Confirmation-depth and reorg handling
-- On-chain receipt verification
-- Reconciliation jobs
-- Distributed rate limiting
-- Centralized metrics, tracing, and logs
-- Managed secrets
-- TLS and cloud firewall configuration
-- Backup and restore testing
-- Disaster-recovery procedures
-- Independent security review
-
-Do not connect this repository to real funds or production custody without these controls and appropriate operational review.
+Do not connect this lab to real funds until these controls are implemented and reviewed.
