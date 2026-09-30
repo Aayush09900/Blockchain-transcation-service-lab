@@ -64,7 +64,7 @@ if (exists("package.json")) {
     }
   }
 
-  for (const dependency of ["hardhat", "@nomicfoundation/hardhat-ethers"]) {
+  for (const dependency of ["hardhat", "@nomicfoundation/hardhat-ethers", "@nomicfoundation/hardhat-mocha"]) {
     if (!pkg.devDependencies?.[dependency]) {
       failures.push(`missing development dependency: ${dependency}`);
     }
