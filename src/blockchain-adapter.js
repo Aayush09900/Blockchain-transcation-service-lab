@@ -547,7 +547,7 @@ export class EthersReceiptMonitor {
     }
 
     if (String(canonicalBlock.hash).toLowerCase() !== normalizedExpectedHash) {
-      return { reorged: true, reason: "confirmed block is no longer canonical" };
+      return { reorged: true, reason: "confirmed block no longer matches canonical evidence" };
     }
 
     return { reorged: false };
