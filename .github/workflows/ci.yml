@@ -38,5 +38,8 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Repository health check
+        run: npm run verify
+
       - name: Build container
         run: docker build --tag blockchain-transaction-service:ci .
