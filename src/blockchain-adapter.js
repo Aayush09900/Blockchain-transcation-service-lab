@@ -18,7 +18,12 @@ const ABI = [
 const CONTRACT_INTERFACE = new Interface(ABI);
 
 export class EthersBlockchainAdapter {
-  constructor({ provider, signer, contractAddress }) {
+  constructor({
+    provider,
+    signer,
+    contractAddress,
+    confirmationDepth = 1
+  }) {
     if (!provider) {
       throw new Error("ethers provider is required");
     }
@@ -31,8 +36,19 @@ export class EthersBlockchainAdapter {
       throw new Error("valid anchor contract address is required");
     }
 
+    const normalizedConfirmationDepth = Number(confirmationDepth);
+
+    if (
+      !Number.isInteger(normalizedConfirmationDepth) ||
+      normalizedConfirmationDepth < 1 ||
+      normalizedConfirmationDepth > 1000
+    ) {
+      throw new Error("confirmationDepth must be an integer between 1 and 1000");
+    }
+
     this.provider = provider;
     this.signer = signer;
+    this.confirmationDepth = normalizedConfirmationDepth;
     this.contractAddress = getAddress(contractAddress);
     this.contract = new Contract(this.contractAddress, ABI, signer);
   }
@@ -41,7 +57,8 @@ export class EthersBlockchainAdapter {
     rpcUrl = process.env.CHAIN_RPC_URL,
     privateKey = process.env.CHAIN_SIGNER_PRIVATE_KEY,
     contractAddress = process.env.ANCHOR_CONTRACT_ADDRESS,
-    chainId
+    chainId,
+    confirmationDepth = process.env.CHAIN_CONFIRMATIONS ?? "1"
   } = {}) {
     if (!rpcUrl || !privateKey || !contractAddress) {
       throw new Error(
@@ -62,7 +79,8 @@ export class EthersBlockchainAdapter {
     return new EthersBlockchainAdapter({
       provider,
       signer,
-      contractAddress
+      contractAddress,
+      confirmationDepth
     });
   }
 
@@ -132,6 +150,23 @@ export class EthersBlockchainAdapter {
       return {
         confirmed: false,
         reverted: true,
+        receipt: {
+          txHash: receipt.hash,
+          status: receipt.status,
+          blockNumber: receipt.blockNumber,
+          blockHash: receipt.blockHash
+        }
+      };
+    }
+
+    const currentBlock = await this.provider.getBlockNumber();
+    const confirmations = currentBlock - receipt.blockNumber + 1;
+
+    if (confirmations < this.confirmationDepth) {
+      return {
+        confirmed: false,
+        confirmations,
+        requiredConfirmations: this.confirmationDepth,
         receipt: {
           txHash: receipt.hash,
           status: receipt.status,
@@ -250,17 +285,29 @@ export class EthersBlockchainAdapter {
 }
 
 export class EthersReceiptMonitor {
-  constructor({ provider }) {
+  constructor({ provider, confirmationDepth = 1 }) {
     if (!provider) {
       throw new Error("ethers provider is required");
     }
 
+    const normalizedConfirmationDepth = Number(confirmationDepth);
+
+    if (
+      !Number.isInteger(normalizedConfirmationDepth) ||
+      normalizedConfirmationDepth < 1 ||
+      normalizedConfirmationDepth > 1000
+    ) {
+      throw new Error("confirmationDepth must be an integer between 1 and 1000");
+    }
+
     this.provider = provider;
+    this.confirmationDepth = normalizedConfirmationDepth;
   }
 
   static fromConfig({
     rpcUrl = process.env.CHAIN_RPC_URL,
-    chainId
+    chainId,
+    confirmationDepth = process.env.CHAIN_CONFIRMATIONS ?? "1"
   } = {}) {
     if (!rpcUrl) {
       throw new Error("CHAIN_RPC_URL is required");
@@ -274,7 +321,7 @@ export class EthersReceiptMonitor {
       }
     );
 
-    return new EthersReceiptMonitor({ provider });
+    return new EthersReceiptMonitor({ provider, confirmationDepth });
   }
 
   async healthCheck(expectedChainId) {
@@ -318,6 +365,18 @@ export class EthersReceiptMonitor {
 
     if (receipt.status !== 1) {
       return { confirmed: false, reverted: true, receipt };
+    }
+
+    const currentBlock = await this.provider.getBlockNumber();
+    const confirmations = currentBlock - receipt.blockNumber + 1;
+
+    if (confirmations < this.confirmationDepth) {
+      return {
+        confirmed: false,
+        confirmations,
+        requiredConfirmations: this.confirmationDepth,
+        receipt
+      };
     }
 
     if (!transaction.to) {
