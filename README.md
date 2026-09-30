@@ -245,11 +245,15 @@ Content-Type: application/json
 ```
 POST /v1/transactions/:id/submit
 Authorization: Bearer <API_TOKEN>
+Content-Type: application/json
 
-{
-  "txHash": "0x..."
-}
+{}
 ```
+
+The service moves the transaction to `BROADCASTING`, broadcasts the configured on-chain anchor through its signer, then stores the returned transaction hash as `SUBMITTED`. Callers cannot provide an arbitrary transaction hash.
+
+A repeated submit is idempotent: once execution has started, the current authoritative state is returned. If the RPC or database outcome becomes ambiguous after broadcast, the transaction remains `BROADCASTING` and the confirmation worker reconciles it from the indexed on-chain anchor event.
+
 
 ### Confirm
 
