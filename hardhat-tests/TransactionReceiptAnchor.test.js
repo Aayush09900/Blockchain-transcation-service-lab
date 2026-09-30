@@ -96,6 +96,48 @@ describe("TransactionReceiptAnchor", function () {
     assert.equal(receipt.txHash, broadcast.txHash);
   });
 
+
+  it("rejects a valid receipt when the on-chain anchor payload does not match the transaction record", async function () {
+    const [sender, receiver, attacker] = await ethers.getSigners();
+
+    const contract = await ethers.deployContract("TransactionReceiptAnchor");
+    await contract.waitForDeployment();
+
+    const adapter = new EthersBlockchainAdapter({
+      provider: ethers.provider,
+      signer: sender,
+      contractAddress: await contract.getAddress()
+    });
+
+    const broadcast = await adapter.broadcastAnchorTransaction({
+      transactionId: "verification-mismatch",
+      sender: sender.address,
+      receiver: receiver.address,
+      amountWei: "5"
+    });
+
+    const verified = await adapter.verifySubmittedTransaction({
+      transactionId: "verification-mismatch",
+      sender: sender.address,
+      receiver: receiver.address,
+      amountWei: "5",
+      txHash: broadcast.txHash
+    });
+
+    assert.equal(verified.confirmed, true);
+
+    await assert.rejects(
+      adapter.verifySubmittedTransaction({
+        transactionId: "verification-mismatch",
+        sender: attacker.address,
+        receiver: receiver.address,
+        amountWei: "5",
+        txHash: broadcast.txHash
+      }),
+      /anchor payload does not match transaction/
+    );
+  });
+
   it("rejects duplicate transaction IDs on-chain", async function () {
     const [sender, receiver] = await ethers.getSigners();
 
