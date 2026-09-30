@@ -27,34 +27,57 @@ const intervalMs = Math.max(
 );
 
 let running = true;
+let processing = false;
 
 async function publishBatch() {
-  const events = await mysqlStore.claimOutboxBatch(100);
+  if (processing) return;
 
-  for (const event of events) {
-    try {
-      const payload = JSON.parse(event.payload);
+  processing = true;
 
-      await mongoStore.appendEvent({
-        eventId: event.event_id,
-        transactionId: event.transaction_id,
-        eventType: event.event_type,
-        payload
-      });
+  try {
+    const events = await mysqlStore.claimOutboxBatch(100);
 
-      await mysqlStore.markOutboxPublished(event.id);
-    } catch (error) {
-      await mysqlStore.markOutboxFailed(
-        event.id,
-        error instanceof Error ? error.message : String(error)
-      );
+    for (const event of events) {
+      try {
+        const payload = JSON.parse(event.payload);
+
+        await mongoStore.appendEvent({
+          eventId: event.event_id,
+          transactionId: event.transaction_id,
+          eventType: event.event_type,
+          payload
+        });
+
+        const transaction = await mysqlStore.get(event.transaction_id);
+        await mongoStore.upsertSnapshot(transaction);
+
+        await mysqlStore.markOutboxPublished(event.id);
+      } catch (error) {
+        await mysqlStore.markOutboxFailed(
+          event.id,
+          error instanceof Error ? error.message : String(error)
+        );
+      }
     }
+  } finally {
+    processing = false;
   }
 }
 
 async function loop() {
   while (running) {
-    await publishBatch();
+    try {
+      await publishBatch();
+    } catch (error) {
+      console.error(JSON.stringify({
+        event: "outbox_publish_loop_error",
+        message:
+          error instanceof Error
+            ? error.message
+            : String(error)
+      }));
+    }
+
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
 }
