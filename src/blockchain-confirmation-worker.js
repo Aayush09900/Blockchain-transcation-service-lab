@@ -104,7 +104,7 @@ async function reconcileBatch() {
       }
     }
 
-    const transactions = await mysqlStore.listSubmitted(batchSize);
+    const transactions = await mysqlStore.listPendingBlockchain(batchSize);
 
     for (const transaction of transactions) {
       try {
@@ -122,8 +122,22 @@ async function reconcileBatch() {
             await mysqlStore.transition(transaction.id, "FAILED", {
               failureReason: "blockchain transaction reverted"
             });
+            continue;
           }
+
+          if (verification.submitted && transaction.status === "BROADCASTING") {
+            await mysqlStore.transition(transaction.id, "SUBMITTED", {
+              txHash: transaction.txHash
+            });
+          }
+
           continue;
+        }
+
+        if (transaction.status === "BROADCASTING") {
+          await mysqlStore.transition(transaction.id, "SUBMITTED", {
+            txHash: transaction.txHash
+          });
         }
 
         await mysqlStore.transition(transaction.id, "CONFIRMED");
