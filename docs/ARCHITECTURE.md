@@ -78,6 +78,12 @@ ethers.js adapter
     |
     v
 Ethereum network
+    |
+    v
+Receipt monitor worker
+    |
+    v
+MySQL SUBMITTED -> CONFIRMED/FAILED
 ```
 
 The adapter is isolated in `src/blockchain-adapter.js`.
@@ -151,6 +157,10 @@ MySQL idempotency constraint returns the existing transaction.
 
 MongoDB unique event ID makes the second delivery a no-op.
 
+### Blockchain receipt delayed
+
+The API stores the broadcast transaction hash as `SUBMITTED` without waiting for mining. The confirmation worker polls receipts and moves the transaction to `CONFIRMED` only after a successful receipt.
+
 ## 8. Production next steps
 
 - Dedicated durable queue for blockchain execution
@@ -160,7 +170,9 @@ MongoDB unique event ID makes the second delivery a no-op.
 - Confirmation depth
 - Reorg detection
 - On-chain receipt verification
-- Reconciliation scheduler
+- Confirmation depth beyond a single mined receipt
+- Reorg detection
+- Durable execution/reconciliation queue
 - Distributed rate limiting
 - OpenTelemetry metrics/tracing
 - Managed secrets
