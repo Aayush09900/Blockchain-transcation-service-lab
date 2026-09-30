@@ -60,6 +60,13 @@ export function loadConfig(env = process.env) {
     throw configError("API_TOKEN must contain at least 32 characters in production");
   }
 
+  if (production && apiToken.length < 32) {
+    const error = new Error("API_TOKEN must contain at least 32 characters in production");
+    error.code = "CONFIG_ERROR";
+    error.statusCode = 500;
+    throw error;
+  }
+
   if (production && !mysqlUrl) {
     throw configError("MYSQL_URL is required in production");
   }
