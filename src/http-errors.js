@@ -11,6 +11,10 @@ export function toPublicHttpError(error) {
     return { statusCode: 409, message: "invalid transaction state transition" };
   }
 
+  if (error?.code === "INVALID_TRANSACTION_ID") {
+    return { statusCode: 400, message: "invalid transaction id" };
+  }
+
   if (error?.statusCode && error.statusCode >= 400 && error.statusCode < 500) {
     return {
       statusCode: error.statusCode,
