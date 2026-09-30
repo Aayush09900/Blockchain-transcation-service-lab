@@ -217,49 +217,6 @@ export class EthersBlockchainAdapter {
     };
   }
 
-  async findAnchorTransaction({
-    transactionId,
-    contractAddress = this.contractAddress,
-    lookbackBlocks = 20_000
-  }) {
-    const normalizedContract = getAddress(contractAddress);
-    const latestBlock = await this.provider.getBlockNumber();
-    const safeLookback = Math.max(1, Math.min(Number(lookbackBlocks) || 20_000, 2_000_000));
-    const fromBlock = Math.max(0, latestBlock - safeLookback);
-
-    const topic = CONTRACT_INTERFACE.getEvent("TransactionAnchored").topicHash;
-    const logs = await this.provider.getLogs({
-      address: normalizedContract,
-      fromBlock,
-      toBlock: latestBlock,
-      topics: [topic, transactionIdToBytes32(transactionId)]
-    });
-
-    if (logs.length === 0) {
-      return null;
-    }
-
-    const latest = logs[logs.length - 1];
-    const parsed = CONTRACT_INTERFACE.parseLog({
-      topics: latest.topics,
-      data: latest.data
-    });
-
-    if (!parsed) {
-      throw blockchainVerificationError("unable to decode anchor event");
-    }
-
-    return {
-      txHash: latest.transactionHash,
-      blockNumber: latest.blockNumber,
-      blockHash: latest.blockHash,
-      transactionId: parsed.args[0],
-      sender: getAddress(parsed.args[1]),
-      receiver: getAddress(parsed.args[2]),
-      amountWei: BigInt(parsed.args[3]).toString()
-    };
-  }
-
   async getTransactionReceipt(txHash) {
     validateTransactionHash(txHash);
 
@@ -409,6 +366,49 @@ export class EthersReceiptMonitor {
     }
 
     return { confirmed: true, receipt };
+  }
+
+  async findAnchorTransaction({
+    transactionId,
+    contractAddress = this.contractAddress,
+    lookbackBlocks = 20_000
+  }) {
+    const normalizedContract = getAddress(contractAddress);
+    const latestBlock = await this.provider.getBlockNumber();
+    const safeLookback = Math.max(1, Math.min(Number(lookbackBlocks) || 20_000, 2_000_000));
+    const fromBlock = Math.max(0, latestBlock - safeLookback);
+
+    const topic = CONTRACT_INTERFACE.getEvent("TransactionAnchored").topicHash;
+    const logs = await this.provider.getLogs({
+      address: normalizedContract,
+      fromBlock,
+      toBlock: latestBlock,
+      topics: [topic, transactionIdToBytes32(transactionId)]
+    });
+
+    if (logs.length === 0) {
+      return null;
+    }
+
+    const latest = logs[logs.length - 1];
+    const parsed = CONTRACT_INTERFACE.parseLog({
+      topics: latest.topics,
+      data: latest.data
+    });
+
+    if (!parsed) {
+      throw blockchainVerificationError("unable to decode anchor event");
+    }
+
+    return {
+      txHash: latest.transactionHash,
+      blockNumber: latest.blockNumber,
+      blockHash: latest.blockHash,
+      transactionId: parsed.args[0],
+      sender: getAddress(parsed.args[1]),
+      receiver: getAddress(parsed.args[2]),
+      amountWei: BigInt(parsed.args[3]).toString()
+    };
   }
 
   async getTransactionReceipt(txHash) {
