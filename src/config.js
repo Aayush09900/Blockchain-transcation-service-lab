@@ -58,6 +58,13 @@ export function loadConfig(env = process.env) {
     throw error;
   }
 
+  if (production && apiToken.length < 32) {
+    const error = new Error("API_TOKEN must contain at least 32 characters in production");
+    error.code = "CONFIG_ERROR";
+    error.statusCode = 500;
+    throw error;
+  }
+
   if (production && !mysqlUrl) {
     const error = new Error(
       "MYSQL_URL is required in production"
@@ -77,9 +84,9 @@ export function loadConfig(env = process.env) {
   }
 
   if (blockchainEnabled) {
-    if (!chainRpcUrl || !anchorContractAddress || !signerPrivateKey) {
+    if (!chainRpcUrl || chainId === undefined || !anchorContractAddress || !signerPrivateKey) {
       const error = new Error(
-        "CHAIN_RPC_URL, ANCHOR_CONTRACT_ADDRESS, and CHAIN_SIGNER_PRIVATE_KEY are required when blockchain is enabled"
+        "CHAIN_RPC_URL, CHAIN_ID, ANCHOR_CONTRACT_ADDRESS, and CHAIN_SIGNER_PRIVATE_KEY are required when blockchain is enabled"
       );
       error.code = "CONFIG_ERROR";
       error.statusCode = 500;
