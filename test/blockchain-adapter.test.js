@@ -221,6 +221,28 @@ test("RPC errors propagate without inventing a FAILED state", async () => {
   );
 });
 
+test("missing receipt does not trigger a reorg while the stored block remains canonical", async () => {
+  const blockHash =
+    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const monitor = monitorFor({
+    transaction: anchorTransaction(),
+    receipt: null,
+    block: {
+      number: 202,
+      hash: blockHash
+    }
+  });
+
+  const result = await monitor.verifyConfirmedTransaction({
+    txHash: TX_HASH,
+    confirmedBlockNumber: 202,
+    confirmedBlockHash: blockHash
+  });
+
+  assert.equal(result.reorged, false);
+  assert.equal(result.verified, false);
+});
+
 test("on-chain payload mismatch is rejected even with a successful receipt", async () => {
   const monitor = monitorFor({
     transaction: anchorTransaction({ amount: 8n }),
