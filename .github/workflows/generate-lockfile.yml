@@ -1,0 +1,48 @@
+name: Generate npm lockfile
+
+on:
+  push:
+    branches:
+      - chore/generate-lockfile
+
+permissions:
+  contents: write
+
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Generate lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Validate clean install
+        run: |
+          rm -rf node_modules
+          npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Commit generated lockfile
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "No lockfile changes."
+          else
+            git commit -m "chore: add npm lockfile"
+            git push origin HEAD:chore/generate-lockfile
+          fi
+
+      - name: Remove temporary workflow
+        run: |
+          git rm .github/workflows/generate-lockfile.yml
+          git commit -m "chore: remove temporary lockfile workflow"
+          git push origin HEAD:chore/generate-lockfile
