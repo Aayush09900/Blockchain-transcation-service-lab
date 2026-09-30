@@ -31,6 +31,21 @@ export function toPublicHttpError(error) {
     return { statusCode: 503, message: "transaction persistence unavailable" };
   }
 
+  if (error?.code === "BLOCKCHAIN_BROADCAST_UNKNOWN") {
+    return {
+      statusCode: 503,
+      message:
+        "blockchain broadcast outcome is unknown; reconciliation is required"
+    };
+  }
+
+  if (error?.code === "EXTERNAL_TX_HASH_NOT_ALLOWED") {
+    return {
+      statusCode: 400,
+      message: "transaction hash is service-controlled"
+    };
+  }
+
   if (error?.code === "VALIDATION_ERROR") {
     return { statusCode: 400, message: error.message };
   }
