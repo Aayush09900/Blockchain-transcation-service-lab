@@ -346,3 +346,5 @@ The backend itself is containerized and published through GitHub Actions/GHCR wh
 The GitHub Pages dashboard is the public project showcase. For an actual internet-facing Node.js API and workers, the repository is prepared for Railway deployment using MySQL, MongoDB, private service networking, and separate API/outbox/confirmation services.
 
 See [docs/RAILWAY-DEPLOYMENT.md](docs/RAILWAY-DEPLOYMENT.md).
+
+OpenAPI specification: [docs/openapi.yaml](docs/openapi.yaml).
