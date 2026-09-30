@@ -13,7 +13,11 @@ const transitions = {
 };
 
 export class MySqlTransactionStore {
-  constructor({ url = process.env.MYSQL_URL, maxPoolSize = 10 } = {}) {
+  constructor({
+    url = process.env.MYSQL_URL,
+    maxPoolSize = 10,
+    ssl = process.env.MYSQL_SSL === "true"
+  } = {}) {
     if (!url) {
       const error = new Error("MYSQL_URL is required");
       error.code = "CONFIG_ERROR";
@@ -21,8 +25,14 @@ export class MySqlTransactionStore {
       throw error;
     }
 
+    const parsed = new URL(url);
+
     this.pool = mysql.createPool({
-      uri: url,
+      host: parsed.hostname,
+      port: parsed.port ? Number(parsed.port) : 3306,
+      user: decodeURIComponent(parsed.username),
+      password: decodeURIComponent(parsed.password),
+      database: decodeURIComponent(parsed.pathname.replace(/^\//, "")),
       waitForConnections: true,
       connectionLimit: maxPoolSize,
       maxIdle: maxPoolSize,
@@ -30,7 +40,8 @@ export class MySqlTransactionStore {
       queueLimit: 0,
       decimalNumbers: false,
       enableKeepAlive: true,
-      keepAliveInitialDelay: 0
+      keepAliveInitialDelay: 0,
+      ssl: ssl ? { rejectUnauthorized: true } : undefined
     });
   }
 
