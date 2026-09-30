@@ -14,8 +14,8 @@ concurrency:
 
 jobs:
   generate:
-    name: Generate package-lock.json when missing
-    if: ${{ hashFiles('package-lock.json') == '' }}
+    name: Generate package-lock.json
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -28,6 +28,7 @@ jobs:
           npm --version
 
       - name: Generate lockfile
+        if: ${{ !hashFiles('package-lock.json') }}
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
       - name: Validate lockfile
