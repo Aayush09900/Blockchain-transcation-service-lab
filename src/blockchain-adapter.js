@@ -8,8 +8,7 @@ import {
   getAddress,
   getBytes,
   id,
-  isAddress,
-  parseUnits
+  isAddress
 } from "ethers";
 import {
   buildTransactionOverrides,
