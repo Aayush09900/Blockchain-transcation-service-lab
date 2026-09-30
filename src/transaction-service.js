@@ -4,6 +4,11 @@ import {
   validateTransactionHash,
   validateTransactionInput
 } from "./validation.js";
+import {
+  calculateRetryDelayMs,
+  isRetryAllowed,
+  RETRY_POLICY
+} from "./retry-policy.js";
 
 export const TransactionStatus = Object.freeze({
   CREATED: "CREATED",
@@ -17,9 +22,8 @@ const transitions = {
   CREATED: new Set(["BROADCASTING", "FAILED", "SUBMITTED"]),
   BROADCASTING: new Set(["SUBMITTED", "FAILED"]),
   SUBMITTED: new Set(["CONFIRMED", "FAILED"]),
-  CONFIRMED: new Set(["REORGED"]),
-  REORGED: new Set(["SUBMITTED", "CONFIRMED", "FAILED"]),
-  FAILED: new Set([])
+  CONFIRMED: new Set([]),
+  FAILED: new Set(["BROADCASTING"])
 };
 
 export class TransactionService {
@@ -63,6 +67,8 @@ export class TransactionService {
       status: TransactionStatus.CREATED,
       txHash: null,
       failureReason: null,
+      retryable: false,
+      retryCount: 0,
       attempts: 0,
       createdAt: now,
       updatedAt: now
@@ -87,14 +93,55 @@ export class TransactionService {
 
   markConfirmed(id) {
     return this.transition(id, TransactionStatus.CONFIRMED, {
-      failureReason: null
+      failureReason: null,
+      retryable: false
     });
   }
 
-  markFailed(id, reason = "transaction failed") {
+  markFailed(id, reason = "transaction failed", { retryable = false } = {}) {
     return this.transition(id, TransactionStatus.FAILED, {
-      failureReason: requireNonEmptyString(reason, "failureReason", 500)
+      failureReason: requireNonEmptyString(reason, "failureReason", 500),
+      retryable: Boolean(retryable)
     });
+  }
+
+  retry(id) {
+    const current = this.get(id);
+
+    if (current.status !== TransactionStatus.FAILED) {
+      const error = new Error(
+        `retry requires a FAILED transaction; current state is ${current.status}`
+      );
+      error.code = "RETRY_NOT_ALLOWED";
+      error.statusCode = 409;
+      throw error;
+    }
+
+    if (!isRetryAllowed(current, RETRY_POLICY)) {
+      const error = new Error("transaction is not eligible for retry");
+      error.code = "RETRY_NOT_ALLOWED";
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const retryCount = current.retryCount + 1;
+    const retryAfterMs = calculateRetryDelayMs(retryCount, RETRY_POLICY);
+
+    const transaction = this.transition(
+      id,
+      TransactionStatus.BROADCASTING,
+      {
+        txHash: null,
+        failureReason: null,
+        retryable: false,
+        retryCount
+      }
+    );
+
+    return {
+      transaction,
+      retryAfterMs
+    };
   }
 
   get(id) {

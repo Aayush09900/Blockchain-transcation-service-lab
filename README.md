@@ -175,6 +175,10 @@ MySQL state + outbox event
 
 The financial/transaction state remains in MySQL. MongoDB is deliberately not the source of truth. The MySQL outbox provides a reliable handoff to the MongoDB audit model. The ethers.js adapter is isolated from HTTP and database code.
 
+### Retry policy
+
+Transient failures can be retried only when the failure is explicitly marked retryable. Retries reuse the original transaction and idempotency key, use bounded exponential backoff (1s, 2s, 4s, capped at 30s), and stop after three retry attempts. Verified blockchain reverts and other non-retryable failures remain terminal.
+
 ## Local development
 
 ### 1. Install
