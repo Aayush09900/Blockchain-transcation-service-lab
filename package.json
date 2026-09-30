@@ -5,7 +5,7 @@
   "description": "Production-oriented blockchain transaction service using MySQL, MongoDB, ethers.js, and Hardhat",
   "type": "module",
   "scripts": {
-    "test": "node --test test",
+    "test": "node --test test/*.test.js",
     "test:hardhat": "hardhat test",
     "test:hardhat:ci": "hardhat test --build-profile production --test-profile ci",
     "chain:compile": "hardhat compile",
