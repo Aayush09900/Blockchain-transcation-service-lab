@@ -89,9 +89,8 @@ Remaining controls for real-money usage:
 - nonce management
 - fee policy
 - chain allowlist
-- confirmation depth beyond the current receipt check
 - reorg handling
-- on-chain reconciliation
+- on-chain reconciliation for unresolved broadcasts; ongoing reorg reconciliation remains required
 - distributed rate limiting
 - managed secrets
 - centralized observability
