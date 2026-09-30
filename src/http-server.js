@@ -44,7 +44,8 @@ const blockchain = config.blockchainEnabled
       rpcUrl: config.chainRpcUrl,
       privateKey: config.signerPrivateKey,
       contractAddress: config.anchorContractAddress,
-      chainId: config.chainId
+      chainId: config.chainId,
+      confirmationDepth: config.chainConfirmations
     })
   : null;
 
@@ -277,7 +278,8 @@ const server = http.createServer(async (request, response) => {
           sender: transaction.from,
           receiver: transaction.to,
           amountWei: parseEther(transaction.amount),
-          txHash: transaction.txHash
+          txHash: transaction.txHash,
+          confirmationDepth: config.chainConfirmations
         });
 
         if (!verification.confirmed) {
