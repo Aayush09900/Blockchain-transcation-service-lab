@@ -27,6 +27,10 @@ export function toPublicHttpError(error) {
     return { statusCode: 400, message: error.message };
   }
 
+  if (error?.code === "BLOCKCHAIN_DISABLED") {
+    return { statusCode: 503, message: "blockchain adapter disabled" };
+  }
+
   if (error?.statusCode && error.statusCode >= 400 && error.statusCode < 500) {
     return {
       statusCode: error.statusCode,
