@@ -107,6 +107,10 @@ Before handling real funds, add:
 - The runtime image removes npm/npx after dependency installation to reduce the shipped tool surface.
 - Application containers run without Linux capabilities, with no-new-privileges, a read-only root filesystem and a hardened temporary filesystem.
 
+## Observability safety
+
+The application exposes only an authenticated metrics endpoint. Metric labels use route templates and bounded categorical values; transaction identifiers, transaction hashes, request IDs, credentials, and payloads are not emitted as Prometheus label values. Worker telemetry is emitted as structured logs and passes through the same sanitization policy as other operational errors.
+
 ## Logging safety
 
 Application and worker error messages pass through centralized redaction before being emitted or stored as retry metadata. Connection-string credentials, bearer tokens, common secret assignments and control characters are removed.
