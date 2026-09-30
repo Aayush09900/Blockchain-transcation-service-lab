@@ -267,6 +267,46 @@ describe("TransactionReceiptAnchor", function () {
 
     assert.equal(await contract.anchorer(), anchorer.address);
   });
+  it("detects a canonical block replacement after a chain reorganization", async function () {
+    const [sender, receiver] = await ethers.getSigners();
+
+    const contract = await ethers.deployContract("TransactionReceiptAnchor");
+    await contract.waitForDeployment();
+
+    const monitor = new EthersReceiptMonitor({
+      provider: ethers.provider
+    });
+
+    const snapshot = await ethers.provider.send("evm_snapshot");
+
+    const first = await contract.anchor(
+      ethers.id("reorg-original"),
+      sender.address,
+      receiver.address,
+      13n
+    );
+    const firstReceipt = await first.wait();
+
+    await ethers.provider.send("evm_revert", [snapshot]);
+
+    const replacement = await contract.anchor(
+      ethers.id("reorg-replacement"),
+      sender.address,
+      receiver.address,
+      14n
+    );
+    await replacement.wait();
+
+    const result = await monitor.verifyConfirmedTransaction({
+      txHash: first.hash,
+      confirmedBlockNumber: firstReceipt.blockNumber,
+      confirmedBlockHash: firstReceipt.blockHash
+    });
+
+    assert.equal(result.reorged, true);
+    assert.match(result.reason, /canonical/i);
+  });
+
   it("waits for the configured confirmation depth before confirming", async function () {
     const [sender, receiver] = await ethers.getSigners();
 
