@@ -71,3 +71,16 @@ For a real production deployment:
 9. test restore and disaster recovery before handling real funds.
 
 Do not run the production configuration without these infrastructure controls.
+
+
+## Blockchain confirmation worker
+
+When blockchain execution is enabled, start the confirmation worker with the `blockchain` Compose profile:
+
+```bash
+docker compose --profile blockchain up --build
+```
+
+The worker polls MySQL transactions in `SUBMITTED` state, queries the configured Ethereum RPC for receipts, and transitions successful receipts to `CONFIRMED` or reverted receipts to `FAILED`.
+
+The API can still expose the manual `/confirm` endpoint for deterministic operational checks.
