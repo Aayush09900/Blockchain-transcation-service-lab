@@ -13,8 +13,9 @@ Returns basic liveness information without exposing database details.
 Checks:
 
 - MySQL
-- MongoDB
-- ethers.js chain connectivity when enabled
+- ethers.js chain connectivity when blockchain is enabled
+
+MongoDB is owned by the outbox worker. MongoDB availability does not make the transaction API accept or reject authoritative transaction writes because MySQL is the source of truth.
 
 ## POST /v1/transactions
 
