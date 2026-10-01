@@ -43,7 +43,7 @@
 - [x] Hardhat integration tests
 - [x] RPC failover across configured endpoints
 - [x] Process-local nonce management
-- [ ] Fee/gas policy
+- [x] Bounded fee/gas policy
 - [x] Chain allowlist via exact configured chain ID
 - [x] Confirmation-depth policy
 - [x] Canonical block-hash revalidation and reorg recovery
@@ -137,3 +137,18 @@ CHAIN_ID=11155111
 ### Blockchain reorganization handling
 
 Every blockchain confirmation stores the mined block number and block hash in MySQL. The confirmation worker rechecks the canonical block hash for recent `CONFIRMED` transactions. A replaced block moves the transaction to `REORGED`, clears the stale confirmation evidence, and causes the worker to re-verify the stored transaction intent before reconfirming it. The reorg check treats a temporary receipt read failure as indeterminate while the stored block remains canonical, preventing a single unhealthy RPC response from creating a false reorg.
+
+
+### Fee and gas policy
+
+When blockchain execution is enabled, production configuration requires `CHAIN_MAX_FEE_PER_GAS_WEI` and `CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI`. The adapter checks current provider fee data before broadcasting and refuses a submission when the network fee exceeds the configured ceiling. Optional `CHAIN_GAS_LIMIT` applies an explicit transaction gas limit. The priority-fee ceiling must not exceed the max-fee ceiling.
+
+Example:
+
+```text
+CHAIN_MAX_FEE_PER_GAS_WEI=50000000000
+CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI=2000000000
+CHAIN_GAS_LIMIT=100000
+```
+
+These are ceilings, not chain-specific recommendations. Operators must choose values appropriate for the target chain and transaction contract.
