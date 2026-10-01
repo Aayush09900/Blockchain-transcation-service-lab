@@ -152,7 +152,9 @@ test("blockchain mode requires a pinned chain ID and secure production RPC", () 
     CHAIN_RPC_URL: "http://rpc.example",
     CHAIN_ID: "11155111",
     ANCHOR_CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000001",
-    CHAIN_SIGNER_PRIVATE_KEY: testPrivateKey
+    CHAIN_SIGNER_PRIVATE_KEY: testPrivateKey,
+    CHAIN_MAX_FEE_PER_GAS_WEI: "50000000000",
+    CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI: "2000000000"
   };
 
   assert.throws(
@@ -196,7 +198,9 @@ test("blockchain RPC URLs are normalized and validated as a set", () => {
     BLOCKCHAIN_ENABLED: "true",
     CHAIN_ID: "11155111",
     ANCHOR_CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000001",
-    CHAIN_SIGNER_PRIVATE_KEY: testPrivateKey
+    CHAIN_SIGNER_PRIVATE_KEY: testPrivateKey,
+    CHAIN_MAX_FEE_PER_GAS_WEI: "50000000000",
+    CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI: "2000000000"
   };
 
   const config = loadConfig({
@@ -232,7 +236,9 @@ test("production blockchain mode requires bounded fee policy", () => {
     CHAIN_RPC_URL: "https://rpc.example",
     CHAIN_ID: "11155111",
     ANCHOR_CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000001",
-    CHAIN_SIGNER_PRIVATE_KEY: testPrivateKey
+    CHAIN_SIGNER_PRIVATE_KEY: testPrivateKey,
+    CHAIN_MAX_FEE_PER_GAS_WEI: "50000000000",
+    CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI: "2000000000"
   };
 
   assert.throws(
@@ -282,7 +288,9 @@ test("blockchain confirmation depth defaults to one and is bounded", () => {
     CHAIN_RPC_URL: "https://rpc.example",
     CHAIN_ID: "11155111",
     ANCHOR_CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000001",
-    CHAIN_SIGNER_PRIVATE_KEY: testPrivateKey
+    CHAIN_SIGNER_PRIVATE_KEY: testPrivateKey,
+    CHAIN_MAX_FEE_PER_GAS_WEI: "50000000000",
+    CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI: "2000000000"
   };
 
   assert.equal(loadConfig(base).chainConfirmations, 1);
