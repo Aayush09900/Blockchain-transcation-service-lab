@@ -53,6 +53,13 @@ export async function submitViaBlockchain({
 
       validateTransactionHash(broadcastResult?.txHash);
     } catch (cause) {
+      if (
+        cause?.code === "BLOCKCHAIN_FEE_POLICY_EXCEEDED" ||
+        cause?.code === "BLOCKCHAIN_SIGNER_LOCK_UNAVAILABLE"
+      ) {
+        throw cause;
+      }
+
       // At this point the signer/RPC may have accepted the transaction even if
       // the request timed out. Never convert that ambiguity into FAILED.
       const error = new Error(
