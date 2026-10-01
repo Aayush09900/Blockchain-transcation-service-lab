@@ -49,7 +49,7 @@ docker run --rm --network host \
     --host="$MYSQL_HOST" \
     --port="$MYSQL_PORT" \
     --user=root \
-    -e "DROP DATABASE IF EXISTS \`$MYSQL_RESTORE_DATABASE\`; CREATE DATABASE \`$MYSQL_RESTORE_DATABASE\`;"
+    -e "DROP DATABASE IF EXISTS $MYSQL_RESTORE_DATABASE; CREATE DATABASE $MYSQL_RESTORE_DATABASE;"
 
 echo "Restoring backup into: $MYSQL_RESTORE_DATABASE"
 docker run --rm --network host \
@@ -72,7 +72,7 @@ query_counts() {
       --port="$MYSQL_PORT" \
       --user=root \
       --batch --skip-column-names \
-      -e "SELECT 'transactions', COUNT(*) FROM \`${database}\`.`transactions`; SELECT 'transaction_outbox', COUNT(*) FROM \`${database}\`.`transaction_outbox\`;"
+      -e "SELECT (SELECT COUNT(*) FROM ${database}.transactions), (SELECT COUNT(*) FROM ${database}.transaction_outbox);"
 }
 
 ORIGINAL_COUNTS="$(query_counts "$MYSQL_DATABASE")"
