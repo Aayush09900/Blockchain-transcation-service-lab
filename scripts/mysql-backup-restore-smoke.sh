@@ -25,28 +25,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "Creating logical MySQL backup: $BACKUP_FILE"
-# Use the CI root account for the backup so the drill validates the complete
-# authoritative schema/data rather than the application account's grants.
-# The dump intentionally omits CREATE DATABASE/USE statements; loading it with
-# the target database as the mysql client's default database makes the restore
-# independent of the source database name.
-docker run --rm --network host \
-  -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" \
-  mysql:8.4 \
-  mysqldump \
-    --host="$MYSQL_HOST" \
-    --port="$MYSQL_PORT" \
-    --user=root \
-    --single-transaction \
-    --no-tablespaces \
-    --routines \
-    --triggers \
-    --set-gtid-purged=OFF \
-    "$MYSQL_DATABASE" > "$BACKUP_FILE"
-
-test -s "$BACKUP_FILE"
-
 echo "Creating clean restore database: $MYSQL_RESTORE_DATABASE"
 docker run --rm --network host \
   -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" \
@@ -57,7 +35,36 @@ docker run --rm --network host \
     --user=root \
     -e "DROP DATABASE IF EXISTS $MYSQL_RESTORE_DATABASE; CREATE DATABASE $MYSQL_RESTORE_DATABASE;"
 
-echo "Restoring backup into: $MYSQL_RESTORE_DATABASE"
+echo "Applying canonical MySQL schema to: $MYSQL_RESTORE_DATABASE"
+docker run --rm --network host -i \
+  -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" \
+  mysql:8.4 \
+  mysql \
+    --host="$MYSQL_HOST" \
+    --port="$MYSQL_PORT" \
+    --user=root \
+    "$MYSQL_RESTORE_DATABASE" < db/mysql/001_init.sql
+
+echo "Creating logical MySQL data backup: $BACKUP_FILE"
+# Use the CI root account so the drill validates complete authoritative data.
+# The data-only dump is restored into the clean canonical schema above.
+docker run --rm --network host \
+  -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" \
+  mysql:8.4 \
+  mysqldump \
+    --host="$MYSQL_HOST" \
+    --port="$MYSQL_PORT" \
+    --user=root \
+    --single-transaction \
+    --no-tablespaces \
+    --no-create-info \
+    --skip-triggers \
+    --set-gtid-purged=OFF \
+    "$MYSQL_DATABASE" > "$BACKUP_FILE"
+
+test -s "$BACKUP_FILE"
+
+echo "Restoring logical MySQL data into: $MYSQL_RESTORE_DATABASE"
 docker run --rm --network host \
   -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" \
   mysql:8.4 \
