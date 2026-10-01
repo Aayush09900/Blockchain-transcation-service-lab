@@ -103,9 +103,12 @@ Configure the recovery window with:
 
 ```text
 CHAIN_RECOVERY_LOOKBACK_BLOCKS=20000
+CHAIN_STALE_BROADCAST_RECONCILIATION_SECONDS=3600
 ```
 
 The lookback must cover the block range in which a crashed broadcast could have been mined. For long-running production systems, set this based on expected outage duration and chain block time, or replace the bounded scan with an indexed event/reconciliation service.
+
+The worker also marks a `BROADCASTING` transaction as requiring operator reconciliation when its `updated_at` is older than `CHAIN_STALE_BROADCAST_RECONCILIATION_SECONDS` and no anchor event has been recovered. This signal is durable and idempotent. It does not change the transaction to `FAILED` and it never triggers an automatic retry, because the blockchain outcome is still unknown.
 
 
 ### Outbox worker concurrency
@@ -117,6 +120,8 @@ The worker defaults to a 50-event batch and a 60-second lease. Configure `OUTBOX
 For databases created before the lease columns existed, apply `db/mysql/002_outbox_leases.sql` during the deployment migration step before starting multiple outbox workers.
 
 For databases created before canonical confirmation evidence existed, apply `db/mysql/003_confirmation_evidence.sql` before enabling reorg recovery.
+
+For databases created before stale broadcast reconciliation existed, apply `db/mysql/004_broadcast_reconciliation.sql` before enabling the confirmation worker's reconciliation signal.
 
 
 ### Blockchain confirmation depth

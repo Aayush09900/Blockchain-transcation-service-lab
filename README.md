@@ -94,6 +94,10 @@ The implementation documents maintained in `docs/` are:
 - [OpenAPI](./docs/openapi.yaml)
 - [Railway Deployment](./docs/RAILWAY-DEPLOYMENT.md)
 
+## Broadcast reconciliation
+
+A broadcast that loses its RPC/database response is intentionally not converted to `FAILED`. The confirmation worker first searches the configured anchor-event lookback window. When a `BROADCASTING` transaction remains unresolved past `CHAIN_STALE_BROADCAST_RECONCILIATION_SECONDS`, MySQL records a durable reconciliation-required signal for operators. The signal is idempotent and is cleared automatically when the transaction is legitimately recovered into `SUBMITTED`, `CONFIRMED`, or another terminal state. No automatic retry is triggered for an unknown broadcast outcome.
+
 ## Transaction lifecycle
 
 The current implementation supports:

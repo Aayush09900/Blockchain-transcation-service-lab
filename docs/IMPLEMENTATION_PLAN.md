@@ -33,6 +33,9 @@ CI gates are implemented for reproducible installs, syntax, application tests, H
 ## Phase 10 — Deployment
 Validate staging first. Production requires managed secrets, RPC redundancy, nonce/fee management, reorg handling, reconciliation, backups, disaster recovery, and operational alerting.
 
+## Phase 11 — Durable stale-broadcast reconciliation
+Completed: stale `BROADCASTING` transactions now receive an idempotent durable reconciliation-required signal after a configurable age threshold. Unknown blockchain outcomes remain non-terminal and are never automatically retried. Integration coverage verifies stale detection, idempotence, and clearing after successful recovery.
+
 ## Definition of done
 Requirement -> implementation -> tests -> security review -> documentation -> CI -> meaningful Git commit.
 

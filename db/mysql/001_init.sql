@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS transactions (
   confirmed_block_number BIGINT UNSIGNED NULL,
   confirmed_block_hash CHAR(66) NULL,
   failure_reason VARCHAR(500) NULL,
+  reconciliation_required_at TIMESTAMP(6) NULL,
+  reconciliation_reason VARCHAR(500) NULL,
   attempts INT UNSIGNED NOT NULL DEFAULT 0,
   created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
@@ -16,7 +18,8 @@ CREATE TABLE IF NOT EXISTS transactions (
   UNIQUE KEY ux_transactions_idempotency_key (idempotency_key),
   UNIQUE KEY ux_transactions_tx_hash (tx_hash),
   KEY ix_transactions_status_updated_at (status, updated_at),
-  KEY ix_transactions_created_at (created_at)
+  KEY ix_transactions_created_at (created_at),
+  KEY ix_transactions_reconciliation (status, reconciliation_required_at, updated_at)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS transaction_outbox (
