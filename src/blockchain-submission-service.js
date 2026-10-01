@@ -4,7 +4,8 @@ import { validateTransactionHash } from "./validation.js";
 export async function submitViaBlockchain({
   transaction,
   blockchain,
-  transitionTransaction
+  transitionTransaction,
+  withSubmissionLock = null
 }) {
   if (!transaction) {
     const error = new Error("transaction not found");
@@ -39,18 +40,30 @@ export async function submitViaBlockchain({
     "BROADCASTING"
   );
 
-  let broadcastResult;
+  const executeBroadcast = async () => {
+    let broadcastResult;
 
-  try {
-    broadcastResult = await blockchain.broadcastAnchorTransaction({
-      transactionId: broadcasting.id,
-      sender: broadcasting.from,
-      receiver: broadcasting.to,
-      amountWei: parseEther(broadcasting.amount)
-    });
+    try {
+      broadcastResult = await blockchain.broadcastAnchorTransaction({
+        transactionId: broadcasting.id,
+        sender: broadcasting.from,
+        receiver: broadcasting.to,
+        amountWei: parseEther(broadcasting.amount)
+      });
 
-    validateTransactionHash(broadcastResult?.txHash);
-  } catch (cause) {
+      validateTransactionHash(broadcastResult?.txHash);
+    } catch (cause) {
+      // At this point the signer/RPC may have accepted the transaction even if
+      // the request timed out. Never convert that ambiguity into FAILED.
+      const error = new Error(
+        "blockchain broadcast outcome is unknown; transaction remains BROADCASTING"
+      );
+      error.code = "BLOCKCHAIN_BROADCAST_UNKNOWN";
+      error.statusCode = 503;
+      error.cause = cause;
+      throw error;
+    }
+
     // At this point the signer/RPC may have accepted the transaction even if
     // the request timed out or persistence failed. Never convert that
     // ambiguity into FAILED; BROADCASTING is the durable reconciliation state.
@@ -63,30 +76,32 @@ export async function submitViaBlockchain({
     throw error;
   }
 
-  let submitted;
+    let submitted;
 
-  try {
-    submitted = await transitionTransaction(
-      broadcasting.id,
-      "SUBMITTED",
-      { txHash: broadcastResult.txHash }
-    );
-  } catch (cause) {
-    // The chain may already have accepted the transaction. If durable
-    // persistence of its hash fails, keep the outcome UNKNOWN so reconciliation
-    // can recover the transaction instead of creating a false negative.
-    const error = new Error(
-      "blockchain broadcast outcome is unknown; transaction remains BROADCASTING"
-    );
-    error.code = "BLOCKCHAIN_BROADCAST_UNKNOWN";
-    error.statusCode = 503;
-    error.cause = cause;
-    throw error;
-  }
+    try {
+      submitted = await transitionTransaction(
+        broadcasting.id,
+        "SUBMITTED",
+        { txHash: broadcastResult.txHash }
+      );
+    } catch (cause) {
+      const error = new Error(
+        "blockchain broadcast outcome is unknown; transaction remains BROADCASTING"
+      );
+      error.code = "BLOCKCHAIN_BROADCAST_UNKNOWN";
+      error.statusCode = 503;
+      error.cause = cause;
+      throw error;
+    }
 
-  return {
-    transaction: submitted,
-    blockchain: broadcastResult,
-    reused: false
+    return {
+      transaction: submitted,
+      blockchain: broadcastResult,
+      reused: false
+    };
   };
+
+  return withSubmissionLock
+    ? withSubmissionLock(executeBroadcast)
+    : executeBroadcast();
 }
