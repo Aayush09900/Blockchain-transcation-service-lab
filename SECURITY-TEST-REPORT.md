@@ -95,24 +95,22 @@ The service still rejects traversal-style payloads because hostile path input sh
 
 ## Remaining production risks
 
-The project is a production-oriented engineering lab, not a live custody platform.
+The repository now has CI coverage for MySQL logical backup/restore, exact chain-ID allowlisting, bounded fee/gas policy, shared-MySQL signer locking, receipt verification, reorg evidence, broadcast reconciliation, authenticated metrics, and security regression checks.
 
 Remaining controls for real-money usage:
 
-- durable execution queue
-- cross-instance nonce coordination
-- cross-database signer coordination
-- chain allowlist
-- cross-provider finality monitoring for deep-chain reorgs
-- on-chain reconciliation for unresolved broadcasts; ongoing reorg reconciliation remains required
-- distributed rate limiting
-- managed secrets
-- centralized observability
-- backup/restore validation
-- disaster recovery
-- external security review
-- durable broadcast/reconciliation for transactions that remain unresolved beyond the configured event lookback window
-- cross-instance nonce coordination for multiple signer processes
+- durable asynchronous transaction execution beyond the current API-triggered submission path;
+- signer/nonce coordination when signer state is split across databases, services, or independently scaled signer processes;
+- independent-provider finality monitoring for deep or provider-divergent chain reorganizations;
+- reconciliation for broadcasts that remain unresolved beyond the configured event lookback window;
+- distributed rate limiting for horizontally scaled API deployments;
+- managed secret storage and rotation;
+- centralized logs, metrics scraping, alerting, and operational SLOs;
+- managed database backup retention, point-in-time recovery, and a production disaster-recovery restore exercise;
+- audited deployment/change-control for the on-chain anchor contract;
+- independent external security review.
+
+The CI backup/restore drill validates repository-level logical restorability only. It does not certify managed disaster recovery or production custody readiness.
 
 
 ## Final CI review notes

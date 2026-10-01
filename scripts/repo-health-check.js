@@ -53,7 +53,8 @@ const requiredFiles = [
   ".github/pull_request_template.md",
   "docs/openapi.yaml",
   "docs/BRANCH-PROTECTION.md",
-  "docs/RAILWAY-DEPLOYMENT.md"
+  "docs/RAILWAY-DEPLOYMENT.md",
+  "scripts/mysql-backup-restore-smoke.sh"
 ];
 
 const failures = [];
