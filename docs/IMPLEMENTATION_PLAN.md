@@ -19,13 +19,16 @@ Completed: broadcast and post-broadcast persistence ambiguity leave the transact
 Completed: MySQL outbox rows use worker ownership leases, `FOR UPDATE SKIP LOCKED`, expiry recovery, and ownership checks before finalization.
 
 ## Phase 6 — Confirmation tests
-Completed: receipt verification regression coverage now includes pending receipts, successful receipts, reverted receipts, RPC failures, repeated verification, and payload mismatch protection. State-machine tests cover terminal-state protection.
+Completed: receipt verification regression coverage now includes pending receipts, successful receipts, reverted receipts, RPC failures, repeated verification, payload mismatch protection, reorg evidence, and fee/gas policy validation. State-machine tests cover terminal-state protection.
 
 ## Phase 7 — Security regression
 Implemented; final candidate status is gated by application, Hardhat, repository-health, dependency-audit, CodeQL, and container validation checks.
 
 ## Phase 8 — Observability
 Implemented: authenticated Prometheus-format metrics, low-cardinality HTTP telemetry, outbox lag telemetry, broadcast/verification outcomes, reorg/recovery counters, confirmation evidence, and throttled worker heartbeats.
+
+## Phase 8a — Fee and gas policy
+Completed: production blockchain mode now requires an explicit gas ceiling plus EIP-1559 max-fee and max-priority-fee ceilings, with exact decimal parsing and bounded safety checks.
 
 ## Phase 9 — Docker/CI
 CI gates are implemented for reproducible installs, syntax, application tests, Hardhat compile/tests, repository health, dependency audit, container build, and HIGH/CRITICAL image scanning.
