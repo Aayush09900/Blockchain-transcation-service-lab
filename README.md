@@ -343,7 +343,7 @@ The repository is now structured as a production-oriented transaction service, b
 - durable job queue and workers
 - RPC failover across independently configured RPC endpoints
 - nonce management within a single signer process
-- fee policy
+- bounded fee/gas policy
 - chain allowlisting
 - receipt/confirmation depth
 - canonical block evidence and reorg recovery
