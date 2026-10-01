@@ -16,6 +16,7 @@ const requiredFiles = [
   "db/mysql/001_init.sql",
   "db/mysql/002_outbox_leases.sql",
   "db/mysql/003_confirmation_evidence.sql",
+  "scripts/mysql-backup-restore-smoke.sh",
   "src/http-server.js",
   "src/http-errors.js",
   "src/path-security.js",
@@ -193,6 +194,7 @@ for (const workflowFile of workflowFiles) {
     }
   }
 }
+
 if (failures.length > 0) {
   console.error("Repository health check failed:");
 
