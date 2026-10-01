@@ -222,6 +222,56 @@ test("blockchain RPC URLs are normalized and validated as a set", () => {
   );
 });
 
+test("production blockchain mode requires bounded fee policy", () => {
+  const base = {
+    NODE_ENV: "production",
+    API_TOKEN: "long-test-token-123456789012345678901234",
+    MYSQL_URL: "mysql://example",
+    MONGO_URL: "mongodb://example",
+    BLOCKCHAIN_ENABLED: "true",
+    CHAIN_RPC_URL: "https://rpc.example",
+    CHAIN_ID: "11155111",
+    ANCHOR_CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000001",
+    CHAIN_SIGNER_PRIVATE_KEY: testPrivateKey
+  };
+
+  assert.throws(
+    () => loadConfig(base),
+    /CHAIN_MAX_FEE_PER_GAS_WEI and CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI are required/
+  );
+
+  const config = loadConfig({
+    ...base,
+    CHAIN_MAX_FEE_PER_GAS_WEI: "50000000000",
+    CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI: "2000000000",
+    CHAIN_GAS_LIMIT: "100000"
+  });
+
+  assert.equal(config.chainMaxFeePerGasWei, "50000000000");
+  assert.equal(config.chainMaxPriorityFeePerGasWei, "2000000000");
+  assert.equal(config.chainGasLimit, "100000");
+
+  assert.throws(
+    () =>
+      loadConfig({
+        ...base,
+        CHAIN_MAX_FEE_PER_GAS_WEI: "100",
+        CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI: "101"
+      }),
+    /must be <= CHAIN_MAX_FEE_PER_GAS_WEI/
+  );
+
+  assert.throws(
+    () =>
+      loadConfig({
+        ...base,
+        CHAIN_MAX_FEE_PER_GAS_WEI: "not-a-number",
+        CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI: "2"
+      }),
+    /must be a decimal unsigned integer/
+  );
+});
+
 test("blockchain confirmation depth defaults to one and is bounded", () => {
   const base = {
     NODE_ENV: "production",
