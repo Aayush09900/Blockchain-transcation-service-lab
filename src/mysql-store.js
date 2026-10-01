@@ -73,6 +73,43 @@ export class MySqlTransactionStore {
     return rows[0]?.ok === 1;
   }
 
+  async withAdvisoryLock(lockName, timeoutSeconds, fn) {
+    const connection = await this.pool.getConnection();
+
+    try {
+      const safeTimeout = Number(timeoutSeconds);
+
+      if (!Number.isInteger(safeTimeout) || safeTimeout < 1 || safeTimeout > 30) {
+        const error = new Error("timeoutSeconds must be between 1 and 30");
+        error.code = "CONFIG_ERROR";
+        error.statusCode = 500;
+        throw error;
+      }
+
+      const [rows] = await connection.execute(
+        "SELECT GET_LOCK(?, ?) AS acquired",
+        [String(lockName), safeTimeout]
+      );
+
+      if (Number(rows[0]?.acquired) !== 1) {
+        const error = new Error("blockchain signer lock is unavailable");
+        error.code = "BLOCKCHAIN_SIGNER_LOCK_UNAVAILABLE";
+        error.statusCode = 503;
+        throw error;
+      }
+
+      try {
+        return await fn();
+      } finally {
+        await connection.execute("SELECT RELEASE_LOCK(?) AS released", [
+          String(lockName)
+        ]);
+      }
+    } finally {
+      connection.release();
+    }
+  }
+
   async createOrGet({ id = randomUUID(), idempotencyKey, from, to, amount }) {
     const input = validateTransactionInput({
       idempotencyKey,
