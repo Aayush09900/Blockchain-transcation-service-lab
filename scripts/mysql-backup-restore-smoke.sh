@@ -34,6 +34,7 @@ docker run --rm --network host \
     --port="$MYSQL_PORT" \
     --user="$MYSQL_USER" \
     --single-transaction \
+    --no-tablespaces \
     --routines \
     --triggers \
     "$MYSQL_DATABASE" > "$BACKUP_FILE"
