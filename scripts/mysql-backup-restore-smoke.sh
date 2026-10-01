@@ -26,32 +26,26 @@ cleanup() {
 trap cleanup EXIT
 
 echo "Creating logical MySQL backup: $BACKUP_FILE"
+# Use the CI root account for the backup so the drill validates the complete
+# authoritative schema/data rather than the application account's grants.
+# The dump intentionally omits CREATE DATABASE/USE statements; loading it with
+# the target database as the mysql client's default database makes the restore
+# independent of the source database name.
 docker run --rm --network host \
-  -e MYSQL_PWD="$MYSQL_PASSWORD" \
+  -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" \
   mysql:8.4 \
   mysqldump \
     --host="$MYSQL_HOST" \
     --port="$MYSQL_PORT" \
-    --user="$MYSQL_USER" \
+    --user=root \
     --single-transaction \
     --no-tablespaces \
     --routines \
     --triggers \
+    --set-gtid-purged=OFF \
     "$MYSQL_DATABASE" > "$BACKUP_FILE"
 
 test -s "$BACKUP_FILE"
-
-# mysqldump emits a USE statement for the source database. Rewrite only that
-# statement so the logical backup is restored into the isolated target schema.
-RESTORE_BACKUP_FILE="$BACKUP_FILE.restore"
-awk -v target="$MYSQL_RESTORE_DATABASE" '
-  /^USE \`[^`]+\`;/ {
-    print "USE \`" target "\`;";
-    next;
-  }
-  { print }
-' "$BACKUP_FILE" > "$RESTORE_BACKUP_FILE"
-mv "$RESTORE_BACKUP_FILE" "$BACKUP_FILE"
 
 echo "Creating clean restore database: $MYSQL_RESTORE_DATABASE"
 docker run --rm --network host \
