@@ -16,6 +16,7 @@ const requiredFiles = [
   "db/mysql/001_init.sql",
   "db/mysql/002_outbox_leases.sql",
   "db/mysql/003_confirmation_evidence.sql",
+  "db/mysql/004_rate_limit_clients.sql",
   "src/http-server.js",
   "src/http-errors.js",
   "src/path-security.js",
