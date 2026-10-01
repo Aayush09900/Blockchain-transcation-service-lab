@@ -85,6 +85,7 @@ export class MySqlTransactionStore {
     const safeWindowMs = Number(windowMs);
     const safeMaxRequests = Number(maxRequests);
     const safeMaxClients = Number(maxClients);
+    const safeWindowMicros = safeWindowMs * 1000;
 
     if (
       !Number.isInteger(safeWindowMs) ||
@@ -164,7 +165,7 @@ export class MySqlTransactionStore {
           if (recheckRows.length === 0) {
             await connection.execute(
               "DELETE FROM rate_limit_clients WHERE TIMESTAMPDIFF(MICROSECOND, last_seen_at, CURRENT_TIMESTAMP(6)) >= ?",
-              [safeWindowMs]
+              [safeWindowMicros]
             );
 
             const [countRows] = await connection.execute(
@@ -213,9 +214,9 @@ export class MySqlTransactionStore {
       const [updateResult] = await connection.execute(
         "UPDATE rate_limit_clients SET request_count = CASE WHEN TIMESTAMPDIFF(MICROSECOND, window_started_at, CURRENT_TIMESTAMP(6)) >= ? THEN 1 WHEN request_count < ? THEN request_count + 1 ELSE request_count END, window_started_at = CASE WHEN TIMESTAMPDIFF(MICROSECOND, window_started_at, CURRENT_TIMESTAMP(6)) >= ? THEN CURRENT_TIMESTAMP(6) ELSE window_started_at END, last_seen_at = CURRENT_TIMESTAMP(6) WHERE client_hash = ?",
         [
-          safeWindowMs,
+          safeWindowMicros,
           safeMaxRequests + 1,
-          safeWindowMs,
+          safeWindowMicros,
           clientHash
         ]
       );
@@ -244,7 +245,7 @@ export class MySqlTransactionStore {
           if (recheckRows.length === 0) {
             await connection.execute(
               "DELETE FROM rate_limit_clients WHERE TIMESTAMPDIFF(MICROSECOND, last_seen_at, CURRENT_TIMESTAMP(6)) >= ?",
-              [safeWindowMs]
+              [safeWindowMicros]
             );
 
             const [countRows] = await connection.execute(
@@ -291,7 +292,7 @@ export class MySqlTransactionStore {
 
       const [rows] = await connection.execute(
         "SELECT request_count, GREATEST(1, CEIL((? - TIMESTAMPDIFF(MICROSECOND, window_started_at, CURRENT_TIMESTAMP(6))) / 1000000)) AS retry_after_seconds FROM rate_limit_clients WHERE client_hash = ?",
-        [safeWindowMs, clientHash]
+        [safeWindowMicros, clientHash]
       );
 
       if (rows.length === 0) {
