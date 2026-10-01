@@ -5,6 +5,7 @@ export async function submitViaBlockchain({
   transaction,
   blockchain,
   transitionTransaction,
+  getTransaction = null,
   withSubmissionLock = null
 }) {
   if (!transaction) {
