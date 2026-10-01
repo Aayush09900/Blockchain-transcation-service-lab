@@ -309,6 +309,7 @@ const server = http.createServer(async (request, response) => {
         transaction,
         blockchain,
         transitionTransaction,
+        getTransaction,
         withSubmissionLock: (operation) =>
           mysqlStore.withAdvisoryLock(
             `blockchain-signer:${config.chainId}`,

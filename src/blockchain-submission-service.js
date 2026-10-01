@@ -5,6 +5,7 @@ export async function submitViaBlockchain({
   transaction,
   blockchain,
   transitionTransaction,
+  getTransaction = null,
   withSubmissionLock = null
 }) {
   if (!transaction) {
@@ -32,15 +33,28 @@ export async function submitViaBlockchain({
     throw error;
   }
 
-  // Persist BROADCASTING before touching the chain. If the process crashes
-  // after the chain accepts the transaction, the recovery worker can search
-  // the indexed anchor event by transaction ID and recover the tx hash.
-  const broadcasting = await transitionTransaction(
-    transaction.id,
-    "BROADCASTING"
-  );
-
+  // Claim the signer lock before changing state. If the lock is unavailable,
+  // the transaction stays CREATED and a later request can retry safely.
+  // Re-read authoritative state after acquiring the lock to eliminate
+  // duplicate broadcasts from concurrent callers using stale snapshots.
   const executeBroadcast = async () => {
+    const current = getTransaction
+      ? await getTransaction(transaction.id)
+      : transaction;
+
+    if (current.status !== "CREATED") {
+      return {
+        transaction: current,
+        blockchain: null,
+        reused: true
+      };
+    }
+
+    const broadcasting = await transitionTransaction(
+      current.id,
+      "BROADCASTING"
+    );
+
     let broadcastResult;
 
     try {

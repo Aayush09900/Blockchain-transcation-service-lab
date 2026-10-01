@@ -79,6 +79,73 @@ test("service-controlled submit broadcasts once and persists the returned hash",
   assert.equal(result.reused, false);
 });
 
+test("signer lock is acquired before the transaction enters BROADCASTING", async () => {
+  const recorder = createTransitionRecorder();
+  const calls = [];
+
+  await assert.rejects(
+    submitViaBlockchain({
+      transaction: BASE_TRANSACTION,
+      blockchain: {
+        async broadcastAnchorTransaction() {
+          calls.push("broadcast");
+          throw new Error("must not broadcast");
+        }
+      },
+      transitionTransaction: recorder.transition,
+      getTransaction: async () => ({ ...BASE_TRANSACTION }),
+      withSubmissionLock: async () => {
+        calls.push("lock-rejected");
+        const error = new Error("signer lock unavailable");
+        error.code = "BLOCKCHAIN_SIGNER_LOCK_UNAVAILABLE";
+        error.statusCode = 503;
+        throw error;
+      }
+    }),
+    (error) => {
+      assert.equal(error.code, "BLOCKCHAIN_SIGNER_LOCK_UNAVAILABLE");
+      return true;
+    }
+  );
+
+  assert.deepEqual(calls, ["lock-rejected"]);
+  assert.equal(recorder.calls.length, 0);
+  assert.equal(recorder.current.status, "CREATED");
+});
+
+test("submission rechecks authoritative state after acquiring the signer lock", async () => {
+  const recorder = createTransitionRecorder({
+    initial: {
+      ...BASE_TRANSACTION,
+      status: "SUBMITTED",
+      txHash: TX_HASH
+    }
+  });
+  let broadcastCalls = 0;
+
+  const result = await submitViaBlockchain({
+    transaction: BASE_TRANSACTION,
+    blockchain: {
+      async broadcastAnchorTransaction() {
+        broadcastCalls += 1;
+        throw new Error("duplicate broadcast");
+      }
+    },
+    transitionTransaction: recorder.transition,
+    getTransaction: async () => ({
+      ...BASE_TRANSACTION,
+      status: "SUBMITTED",
+      txHash: TX_HASH
+    }),
+    withSubmissionLock: async (operation) => operation()
+  });
+
+  assert.equal(broadcastCalls, 0);
+  assert.equal(result.reused, true);
+  assert.equal(result.transaction.status, "SUBMITTED");
+  assert.equal(recorder.calls.length, 0);
+});
+
 test("service submission executes blockchain work inside the distributed signer lock", async () => {
   const recorder = createTransitionRecorder();
   const calls = [];

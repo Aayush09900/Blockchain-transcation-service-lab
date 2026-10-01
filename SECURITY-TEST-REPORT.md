@@ -55,6 +55,7 @@ The repository was re-checked across:
 | SEC-30 | Confirmed transactions lacked durable canonical block evidence for post-confirmation reorg detection | High | Persist confirmed block number/hash, revalidate canonical block evidence, and recover transactions through the REORGED state |
 | SEC-31 | Confirmation could be attempted without durable blockchain evidence | Medium | Require a stored tx hash before blockchain confirmation and return a safe 409 response |
 | SEC-32 | Blockchain broadcasts lacked a production fee ceiling and multi-replica signer coordination | High | Added max fee/priority fee/gas-limit policy and a MySQL-backed advisory lock around service-controlled broadcasts; cross-database signer coordination remains out of scope |
+| SEC-33 | Signer-lock contention could move a transaction to `BROADCASTING` before the lock was acquired, leaving a safe retry path unavailable | Medium | Acquire the advisory lock before the `BROADCASTING` transition and re-read authoritative state inside the lock; added regression coverage for lock failure and stale concurrent callers |
 
 ## Current observability controls
 
