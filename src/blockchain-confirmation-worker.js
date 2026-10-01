@@ -52,6 +52,16 @@ const recoveryLookbackBlocks = Math.max(
     Number.parseInt(process.env.CHAIN_RECOVERY_LOOKBACK_BLOCKS ?? "20000", 10)
   )
 );
+const staleBroadcastReconciliationSeconds = Math.max(
+  60,
+  Math.min(
+    604_800,
+    Number.parseInt(
+      process.env.CHAIN_STALE_BROADCAST_RECONCILIATION_SECONDS ?? "3600",
+      10
+    )
+  )
+);
 
 let running = true;
 let processing = false;
@@ -65,6 +75,7 @@ let failedCount = 0;
 let pendingCount = 0;
 let verificationErrorCount = 0;
 let rpcErrorCount = 0;
+let reconciliationRequiredCount = 0;
 let lastHeartbeatAt = 0;
 
 async function reconcileBatch() {
@@ -121,6 +132,31 @@ async function reconcileBatch() {
             event: "blockchain_broadcast_recovery_error",
             transactionId: transaction.id,
             message: sanitizeError(error)
+          }));
+        }
+      }
+
+      
+      const staleBroadcasts = await mysqlStore.listStaleBroadcasting(
+        new Date(
+          Date.now() - staleBroadcastReconciliationSeconds * 1000
+        ),
+        batchSize
+      );
+
+      for (const transaction of staleBroadcasts) {
+        const marked = await mysqlStore.markBroadcastReconciliationRequired(
+          transaction.id,
+          `broadcast outcome unresolved beyond ${staleBroadcastReconciliationSeconds}s; indexed anchor event not recovered within configured lookback`
+        );
+
+        if (marked) {
+          reconciliationRequiredCount += 1;
+          console.error(JSON.stringify({
+            event: "blockchain_broadcast_reconciliation_required",
+            transactionId: transaction.id,
+            updatedAt: transaction.updatedAt,
+            thresholdSeconds: staleBroadcastReconciliationSeconds
           }));
         }
       }
@@ -251,7 +287,7 @@ async function reconcileBatch() {
     } finally {
       console.log(JSON.stringify({
         event: "blockchain_confirmation_batch_processed",
-        totals: { batchesProcessed, recoveredCount, confirmedCount, reorgedCount, reorgRecoveredCount, failedCount, pendingCount, verificationErrorCount, rpcErrorCount }
+        totals: { batchesProcessed, recoveredCount, confirmedCount, reorgedCount, reorgRecoveredCount, failedCount, pendingCount, verificationErrorCount, rpcErrorCount, reconciliationRequiredCount }
       }));
       inFlight = null;
       processing = false;
@@ -280,7 +316,7 @@ async function loop() {
         timestamp: new Date(now).toISOString(),
         running,
         processing,
-        totals: { batchesProcessed, recoveredCount, confirmedCount, reorgedCount, reorgRecoveredCount, failedCount, pendingCount, verificationErrorCount, rpcErrorCount }
+        totals: { batchesProcessed, recoveredCount, confirmedCount, reorgedCount, reorgRecoveredCount, failedCount, pendingCount, verificationErrorCount, rpcErrorCount, reconciliationRequiredCount }
       }));
     }
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
@@ -316,6 +352,8 @@ console.log(JSON.stringify({
   event: "blockchain_confirmation_worker_started",
   intervalMs,
   batchSize,
+  recoveryLookbackBlocks,
+  staleBroadcastReconciliationSeconds,
   chainId: expectedChainId ?? "provider-detected"
 }));
 
