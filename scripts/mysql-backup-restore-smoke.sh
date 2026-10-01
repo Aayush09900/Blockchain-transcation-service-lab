@@ -76,6 +76,14 @@ if [[ "$INSERT_COUNT" -eq 0 ]]; then
 fi
 echo "Logical data backup contains $INSERT_COUNT INSERT statements."
 
+RESTORE_BACKUP_FILE="$BACKUP_FILE.restore"
+sed -E \
+  -e "s/^USE \`$MYSQL_DATABASE\`;/USE \`$MYSQL_RESTORE_DATABASE\`;/g" \
+  -e "s/\`$MYSQL_DATABASE\`\./\`$MYSQL_RESTORE_DATABASE\`./g" \
+  "$BACKUP_FILE" > "$RESTORE_BACKUP_FILE"
+
+test -s "$RESTORE_BACKUP_FILE"
+
 echo "Restoring logical MySQL data into: $MYSQL_RESTORE_DATABASE"
 docker run --rm --network host \
   -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" \
@@ -84,7 +92,7 @@ docker run --rm --network host \
     --host="$MYSQL_HOST" \
     --port="$MYSQL_PORT" \
     --user=root \
-    "$MYSQL_RESTORE_DATABASE" < "$BACKUP_FILE"
+    "$MYSQL_RESTORE_DATABASE" < "$RESTORE_BACKUP_FILE"
 
 query_counts() {
   local database="$1"
