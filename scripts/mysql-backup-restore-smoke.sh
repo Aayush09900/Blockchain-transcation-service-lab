@@ -104,7 +104,7 @@ if [[ "$RESTORE_INSERT_COUNT" -ne "$INSERT_COUNT" ]]; then
 fi
 
 echo "Restoring logical MySQL data into: $MYSQL_RESTORE_DATABASE"
-mysql_root "$MYSQL_RESTORE_DATABASE" < "$RESTORE_BACKUP_FILE"
+mysql_root "$MYSQL_RESTORE_DATABASE" -e "source $RESTORE_BACKUP_FILE"
 
 query_counts() {
   local database="$1"
