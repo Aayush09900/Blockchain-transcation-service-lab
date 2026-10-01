@@ -68,6 +68,23 @@ export function loadConfig(env = process.env) {
   const chainConfirmations = env.CHAIN_CONFIRMATIONS
     ? Number(env.CHAIN_CONFIRMATIONS)
     : 1;
+  const chainMaxFeePerGasWei = env.CHAIN_MAX_FEE_PER_GAS_WEI
+    ? parseUint256String(env.CHAIN_MAX_FEE_PER_GAS_WEI, "CHAIN_MAX_FEE_PER_GAS_WEI")
+    : "";
+  const chainMaxPriorityFeePerGasWei = env.CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI
+    ? parseUint256String(
+        env.CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI,
+        "CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI"
+      )
+    : "";
+  const chainGasLimit = env.CHAIN_GAS_LIMIT
+    ? parseUint256String(env.CHAIN_GAS_LIMIT, "CHAIN_GAS_LIMIT")
+    : "";
+  const chainSignerLockTimeoutSeconds = positiveInteger(
+    env.CHAIN_SIGNER_LOCK_TIMEOUT_SECONDS,
+    "CHAIN_SIGNER_LOCK_TIMEOUT_SECONDS",
+    10
+  );
 
   const mysqlSsl = booleanValue(env.MYSQL_SSL, production);
   const mongoTls = booleanValue(env.MONGO_TLS, production);
@@ -129,6 +146,22 @@ export function loadConfig(env = process.env) {
     if (!/^0x[0-9a-fA-F]{64}$/.test(signerPrivateKey)) {
       throw configError("CHAIN_SIGNER_PRIVATE_KEY must be a 32-byte hex private key");
     }
+
+    if (production && (!chainMaxFeePerGasWei || !chainMaxPriorityFeePerGasWei)) {
+      throw configError(
+        "CHAIN_MAX_FEE_PER_GAS_WEI and CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI are required in production when blockchain is enabled"
+      );
+    }
+
+    if (
+      chainMaxFeePerGasWei &&
+      chainMaxPriorityFeePerGasWei &&
+      BigInt(chainMaxPriorityFeePerGasWei) > BigInt(chainMaxFeePerGasWei)
+    ) {
+      throw configError(
+        "CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI must be <= CHAIN_MAX_FEE_PER_GAS_WEI"
+      );
+    }
   }
 
   if (corsOrigin) {
@@ -181,6 +214,10 @@ export function loadConfig(env = process.env) {
     chainRpcUrls,
     chainId,
     chainConfirmations,
+    chainMaxFeePerGasWei,
+    chainMaxPriorityFeePerGasWei,
+    chainGasLimit,
+    chainSignerLockTimeoutSeconds,
     anchorContractAddress,
     signerPrivateKey
   });
@@ -195,4 +232,25 @@ function parseRpcUrls(primaryValue, fallbackValue) {
     .filter(Boolean);
 
   return Object.freeze([...new Set(rawValues)]);
+}
+
+
+function parseUint256String(value, field) {
+  const raw = String(value).trim();
+
+  if (!/^\d+$/.test(raw)) {
+    throw configError(`${field} must be a decimal unsigned integer`);
+  }
+
+  try {
+    const parsed = BigInt(raw);
+
+    if (parsed < 0n || parsed > ((1n << 256n) - 1n)) {
+      throw new Error();
+    }
+
+    return parsed.toString();
+  } catch {
+    throw configError(`${field} must be a valid uint256 decimal value`);
+  }
 }
