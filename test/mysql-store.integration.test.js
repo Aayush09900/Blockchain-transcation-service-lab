@@ -74,6 +74,8 @@ test(
     const id = randomUUID();
     const key = "integration-" + id;
 
+    try {
+
     await poolForTest(mysqlUrl, async (testPool) => {
       await testPool.query("TRUNCATE TABLE rate_limit_clients");
     });
@@ -148,7 +150,6 @@ test(
       assert.equal(Number(rows[0].client_count) <= 2, true);
     });
 
-    try {
       const first = await store.createOrGet({
         id,
         idempotencyKey: key,
