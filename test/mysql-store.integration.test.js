@@ -155,6 +155,62 @@ test(
       assert.equal(submitted.status, "SUBMITTED");
       assert.equal(submitted.attempts, 1);
 
+      const staleId = randomUUID();
+      await store.createOrGet({
+        id: staleId,
+        idempotencyKey: "stale-" + staleId,
+        from: "0x0000000000000000000000000000000000000001",
+        to: "0x0000000000000000000000000000000000000002",
+        amount: "1"
+      });
+      await store.transition(staleId, "BROADCASTING");
+
+      await poolForTest(mysqlUrl, async (testPool) => {
+        await testPool.execute(
+          "UPDATE transactions SET updated_at = CURRENT_TIMESTAMP(6) - INTERVAL 2 HOUR WHERE id = ?",
+          [staleId]
+        );
+      });
+
+      const stale = await store.listStaleBroadcasting(
+        new Date(Date.now() - 60 * 60 * 1000),
+        10
+      );
+      assert.equal(stale.some((row) => row.id === staleId), true);
+      assert.equal(stale[0]?.reconciliationRequiredAt, null);
+
+      assert.equal(
+        await store.markBroadcastReconciliationRequired(
+          staleId,
+          "broadcast outcome unresolved"
+        ),
+        true
+      );
+      assert.equal(
+        await store.markBroadcastReconciliationRequired(
+          staleId,
+          "broadcast outcome unresolved again"
+        ),
+        false
+      );
+
+      const marked = await store.get(staleId);
+      assert.ok(marked.reconciliationRequiredAt);
+      assert.equal(marked.reconciliationReason, "broadcast outcome unresolved");
+
+      const noLongerUnmarked = await store.listStaleBroadcasting(
+        new Date(Date.now() - 60 * 60 * 1000),
+        10
+      );
+      assert.equal(noLongerUnmarked.some((row) => row.id === staleId), false);
+
+      const recoveredStale = await store.transition(staleId, "SUBMITTED", {
+        txHash: "0x4444444444444444444444444444444444444444444444444444444444444444"
+      });
+      assert.equal(recoveredStale.status, "SUBMITTED");
+      assert.equal(recoveredStale.reconciliationRequiredAt, null);
+      assert.equal(recoveredStale.reconciliationReason, null);
+
       const events = await store.claimOutboxBatch(50);
       assert.equal(events.length >= 2, true);
 
