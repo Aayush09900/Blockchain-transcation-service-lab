@@ -31,6 +31,7 @@ mysql_root() {
     -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" \
     mysql:8.4 \
     mysql \
+      --no-defaults \
       --host="$MYSQL_HOST" \
       --port="$MYSQL_PORT" \
       --user=root \
@@ -103,7 +104,7 @@ if [[ "$RESTORE_INSERT_COUNT" -ne "$INSERT_COUNT" ]]; then
 fi
 
 echo "Restoring logical MySQL data into: $MYSQL_RESTORE_DATABASE"
-mysql_root < "$RESTORE_BACKUP_FILE"
+mysql_root "$MYSQL_RESTORE_DATABASE" < "$RESTORE_BACKUP_FILE"
 
 query_counts() {
   local database="$1"
