@@ -77,10 +77,12 @@ fi
 echo "Logical data backup contains $INSERT_COUNT INSERT statements."
 
 RESTORE_BACKUP_FILE="$BACKUP_FILE.restore"
+# Replay only the deterministic INSERT statements. This intentionally avoids
+# source-session directives (USE/SET/LOCK) changing the restore target.
 sed -E \
   -e "s/^USE \`$MYSQL_DATABASE\`;/USE \`$MYSQL_RESTORE_DATABASE\`;/g" \
   -e "s/\`$MYSQL_DATABASE\`\./\`$MYSQL_RESTORE_DATABASE\`./g" \
-  "$BACKUP_FILE" > "$RESTORE_BACKUP_FILE"
+  "$BACKUP_FILE" | grep "^INSERT INTO" > "$RESTORE_BACKUP_FILE"
 
 test -s "$RESTORE_BACKUP_FILE"
 
