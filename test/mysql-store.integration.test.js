@@ -103,6 +103,51 @@ test(
         /idempotency key was already used/
       );
 
+      let releaseFirst;
+      let firstEntered;
+      const firstEnteredPromise = new Promise((resolve) => {
+        firstEntered = resolve;
+      });
+      const releaseFirstPromise = new Promise((resolve) => {
+        releaseFirst = resolve;
+      });
+      const lockEvents = [];
+
+      const firstLock = store.withAdvisoryLock(
+        "integration-blockchain-signer",
+        5,
+        async () => {
+          lockEvents.push("first-start");
+          firstEntered();
+          await releaseFirstPromise;
+          lockEvents.push("first-end");
+        }
+      );
+
+      await firstEnteredPromise;
+
+      const secondLock = competingStore.withAdvisoryLock(
+        "integration-blockchain-signer",
+        5,
+        async () => {
+          lockEvents.push("second-start");
+          lockEvents.push("second-end");
+        }
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      assert.deepEqual(lockEvents, ["first-start"]);
+
+      releaseFirst();
+
+      await Promise.all([firstLock, secondLock]);
+      assert.deepEqual(lockEvents, [
+        "first-start",
+        "first-end",
+        "second-start",
+        "second-end"
+      ]);
+
       const submitted = await store.transition(id, "SUBMITTED", {
         txHash: "0x2222222222222222222222222222222222222222222222222222222222222222"
       });
