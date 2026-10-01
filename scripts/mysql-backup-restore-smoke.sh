@@ -38,6 +38,24 @@ mysql_root() {
       "$@"
 }
 
+mysql_restore_file() {
+  local restore_file="$1"
+  local restore_name
+  restore_name="$(basename "$restore_file")"
+
+  docker run --rm --network host \
+    -v "$BACKUP_DIR:/backup:ro" \
+    -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" \
+    mysql:8.4 \
+    mysql \
+      --no-defaults \
+      --host="$MYSQL_HOST" \
+      --port="$MYSQL_PORT" \
+      --user=root \
+      "$MYSQL_RESTORE_DATABASE" \
+      -e "source /backup/$restore_name"
+}
+
 echo "Creating clean restore database: $MYSQL_RESTORE_DATABASE"
 mysql_root -e "DROP DATABASE IF EXISTS \`$MYSQL_RESTORE_DATABASE\`; CREATE DATABASE \`$MYSQL_RESTORE_DATABASE\`;"
 
@@ -104,7 +122,7 @@ if [[ "$RESTORE_INSERT_COUNT" -ne "$INSERT_COUNT" ]]; then
 fi
 
 echo "Restoring logical MySQL data into: $MYSQL_RESTORE_DATABASE"
-mysql_root "$MYSQL_RESTORE_DATABASE" < "$RESTORE_BACKUP_FILE"
+mysql_restore_file "$RESTORE_BACKUP_FILE"
 
 query_counts() {
   local database="$1"
