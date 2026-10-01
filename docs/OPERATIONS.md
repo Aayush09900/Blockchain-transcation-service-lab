@@ -33,7 +33,8 @@
 - [ ] Managed secret storage
 - [ ] Centralized logs
 - [ ] Centralized metrics scraping and alerting
-- [ ] Backup and restore testing
+- [x] Automated MySQL logical backup/restore drill in CI
+- [ ] Managed-platform backup retention and disaster-recovery restore test
 
 ## Blockchain
 
@@ -74,6 +75,12 @@ For a real production deployment:
 
 Do not run the production configuration without these infrastructure controls.
 
+
+## Backup and restore drill
+
+The CI pipeline performs a logical MySQL backup and restore drill against the same MySQL version used by the integration environment. It dumps the authoritative schema/data, restores it into a clean database, and compares the `transactions` and `transaction_outbox` row counts.
+
+This proves the repository's schema is logically restorable. It does not replace managed database backups, point-in-time recovery, retention policy, or a production disaster-recovery exercise.
 
 ## Blockchain confirmation worker
 
