@@ -56,13 +56,25 @@ docker run --rm --network host \
     --port="$MYSQL_PORT" \
     --user=root \
     --single-transaction \
+    --skip-lock-tables \
+    --skip-add-locks \
+    --skip-disable-keys \
     --no-tablespaces \
     --no-create-info \
     --skip-triggers \
+    --complete-insert \
+    --skip-extended-insert \
+    --order-by-primary \
     --set-gtid-purged=OFF \
-    "$MYSQL_DATABASE" > "$BACKUP_FILE"
+    "$MYSQL_DATABASE" transactions transaction_outbox > "$BACKUP_FILE"
 
 test -s "$BACKUP_FILE"
+INSERT_COUNT="$(grep -c "INSERT INTO" "$BACKUP_FILE" || true)"
+if [[ "$INSERT_COUNT" -eq 0 ]]; then
+  echo "logical data backup contains no INSERT statements" >&2
+  exit 1
+fi
+echo "Logical data backup contains $INSERT_COUNT INSERT statements."
 
 echo "Restoring logical MySQL data into: $MYSQL_RESTORE_DATABASE"
 docker run --rm --network host \
