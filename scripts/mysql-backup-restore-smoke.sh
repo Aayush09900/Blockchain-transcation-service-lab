@@ -41,6 +41,18 @@ docker run --rm --network host \
 
 test -s "$BACKUP_FILE"
 
+# mysqldump emits a USE statement for the source database. Rewrite only that
+# statement so the logical backup is restored into the isolated target schema.
+RESTORE_BACKUP_FILE="$BACKUP_FILE.restore"
+awk -v target="$MYSQL_RESTORE_DATABASE" '
+  /^USE \`[^`]+\`;/ {
+    print "USE \`" target "\`;";
+    next;
+  }
+  { print }
+' "$BACKUP_FILE" > "$RESTORE_BACKUP_FILE"
+mv "$RESTORE_BACKUP_FILE" "$BACKUP_FILE"
+
 echo "Creating clean restore database: $MYSQL_RESTORE_DATABASE"
 docker run --rm --network host \
   -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" \
