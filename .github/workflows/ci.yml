@@ -82,6 +82,18 @@ jobs:
       - name: Repository health check
         run: npm run verify
 
+      - name: MySQL backup and restore drill
+        env:
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_PORT: 3306
+          MYSQL_USER: transaction_service
+          MYSQL_PASSWORD: postgres
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: blockchain_transactions
+          MYSQL_RESTORE_DATABASE: blockchain_transactions_restore
+          BACKUP_DIR: ${{ runner.temp }}/mysql-backup
+        run: bash scripts/mysql-backup-restore-smoke.sh
+
       - name: Build container
         run: docker build --tag blockchain-transaction-service:ci .
 
