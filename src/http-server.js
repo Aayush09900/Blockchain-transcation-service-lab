@@ -308,7 +308,13 @@ const server = http.createServer(async (request, response) => {
       const result = await submitViaBlockchain({
         transaction,
         blockchain,
-        transitionTransaction
+        transitionTransaction,
+        withSubmissionLock: (operation) =>
+          mysqlStore.withAdvisoryLock(
+            `blockchain-signer:${config.chainId}`,
+            config.chainSignerLockTimeoutSeconds,
+            operation
+          )
       });
 
       metrics.increment("tx_service_blockchain_broadcast_total", {
@@ -424,7 +430,13 @@ const server = http.createServer(async (request, response) => {
       const result = await submitViaBlockchain({
         transaction,
         blockchain,
-        transitionTransaction
+        transitionTransaction,
+        withSubmissionLock: (operation) =>
+          mysqlStore.withAdvisoryLock(
+            `blockchain-signer:${config.chainId}`,
+            config.chainSignerLockTimeoutSeconds,
+            operation
+          )
       });
 
       metrics.increment("tx_service_blockchain_broadcast_total", {
@@ -482,6 +494,10 @@ const server = http.createServer(async (request, response) => {
       metrics.increment("tx_service_blockchain_broadcast_total", { outcome: "disabled" });
     } else if (error?.code === "BLOCKCHAIN_VERIFICATION_FAILED") {
       metrics.increment("tx_service_blockchain_verification_total", { outcome: "rejected" });
+    } else if (error?.code === "BLOCKCHAIN_FEE_POLICY_EXCEEDED") {
+      metrics.increment("tx_service_blockchain_broadcast_total", { outcome: "fee_policy_rejected" });
+    } else if (error?.code === "BLOCKCHAIN_SIGNER_LOCK_UNAVAILABLE") {
+      metrics.increment("tx_service_blockchain_broadcast_total", { outcome: "signer_lock_unavailable" });
     }
 
     const publicError = toPublicHttpError(error);
