@@ -56,6 +56,7 @@ The repository was re-checked across:
 | SEC-31 | Confirmation could be attempted without durable blockchain evidence | Medium | Require a stored tx hash before blockchain confirmation and return a safe 409 response |
 | SEC-32 | Blockchain broadcasts lacked a production fee ceiling and multi-replica signer coordination | High | Added max fee/priority fee/gas-limit policy and a MySQL-backed advisory lock around service-controlled broadcasts; cross-database signer coordination remains out of scope |
 | SEC-33 | Signer-lock contention could move a transaction to `BROADCASTING` before the lock was acquired, leaving a safe retry path unavailable | Medium | Acquire the advisory lock before the `BROADCASTING` transition and re-read authoritative state inside the lock; added regression coverage for lock failure and stale concurrent callers |
+| SEC-34 | Broadcasts could remain indefinitely in `BROADCASTING` after the bounded event lookback expired without a durable operator signal | Medium | Added persistent reconciliation-required state, idempotent stale detection, worker telemetry, and regression coverage; unknown broadcasts remain non-terminal and are never auto-retried |
 
 ## Current observability controls
 
@@ -102,7 +103,6 @@ Remaining controls for real-money usage:
 - durable asynchronous transaction execution beyond the current API-triggered submission path;
 - signer/nonce coordination when signer state is split across databases, services, or independently scaled signer processes;
 - independent-provider finality monitoring for deep or provider-divergent chain reorganizations;
-- reconciliation for broadcasts that remain unresolved beyond the configured event lookback window;
 - distributed rate limiting for horizontally scaled API deployments;
 - managed secret storage and rotation;
 - centralized logs, metrics scraping, alerting, and operational SLOs;
