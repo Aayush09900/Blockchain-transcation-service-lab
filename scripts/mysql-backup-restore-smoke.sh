@@ -45,6 +45,7 @@ docker run --rm --network host -i \
   -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" \
   mysql:8.4 \
   mysql \
+    --no-defaults \
     --host="$MYSQL_HOST" \
     --port="$MYSQL_PORT" \
     --user=root \
@@ -58,6 +59,7 @@ docker run --rm --network host \
   -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" \
   mysql:8.4 \
   mysqldump \
+    --no-defaults \
     --host="$MYSQL_HOST" \
     --port="$MYSQL_PORT" \
     --user=root \
