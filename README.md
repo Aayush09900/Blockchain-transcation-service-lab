@@ -326,6 +326,7 @@ The application uses layered controls:
 - ethers.js chain ID validation
 - Multi-RPC failover through ethers.js FallbackProvider
 - Process-local nonce serialization through ethers.js NonceManager
+- Configurable gas limit and EIP-1559 fee ceilings for blockchain broadcasts
 - Production secret validation
 - Security headers and CORS allowlisting
 - CI dependency audit
