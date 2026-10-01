@@ -54,6 +54,7 @@ The repository was re-checked across:
 | SEC-29 | Single-RPC dependency and concurrent signer calls could create availability or nonce-collision risk | High | Added multi-RPC FallbackProvider support and process-local NonceManager serialization; distributed nonce coordination remains a deployment requirement |
 | SEC-30 | Confirmed transactions lacked durable canonical block evidence for post-confirmation reorg detection | High | Persist confirmed block number/hash, revalidate canonical block evidence, and recover transactions through the REORGED state |
 | SEC-31 | Confirmation could be attempted without durable blockchain evidence | Medium | Require a stored tx hash before blockchain confirmation and return a safe 409 response |
+| SEC-32 | Blockchain broadcasts lacked a production fee ceiling and multi-replica signer coordination | High | Added max fee/priority fee/gas-limit policy and a MySQL-backed advisory lock around service-controlled broadcasts; cross-database signer coordination remains out of scope |
 
 ## Current observability controls
 
@@ -99,7 +100,7 @@ Remaining controls for real-money usage:
 
 - durable execution queue
 - cross-instance nonce coordination
-- fee policy
+- cross-database signer coordination
 - chain allowlist
 - cross-provider finality monitoring for deep-chain reorgs
 - on-chain reconciliation for unresolved broadcasts; ongoing reorg reconciliation remains required
