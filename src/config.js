@@ -1,4 +1,9 @@
 import { isAddress } from "ethers";
+import {
+  parseOptionalGasLimit,
+  parseOptionalGwei,
+  validateFeePolicy
+} from "./blockchain-fee-policy.js";
 
 function positiveInteger(value, field, fallback) {
   const raw = String(value ?? fallback).trim();
@@ -68,22 +73,14 @@ export function loadConfig(env = process.env) {
   const chainConfirmations = env.CHAIN_CONFIRMATIONS
     ? Number(env.CHAIN_CONFIRMATIONS)
     : 1;
-  const chainMaxFeePerGasWei = env.CHAIN_MAX_FEE_PER_GAS_WEI
-    ? parseUint256String(env.CHAIN_MAX_FEE_PER_GAS_WEI, "CHAIN_MAX_FEE_PER_GAS_WEI")
-    : "";
-  const chainMaxPriorityFeePerGasWei = env.CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI
-    ? parseUint256String(
-        env.CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI,
-        "CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI"
-      )
-    : "";
-  const chainGasLimit = env.CHAIN_GAS_LIMIT
-    ? parseUint256String(env.CHAIN_GAS_LIMIT, "CHAIN_GAS_LIMIT")
-    : "";
-  const chainSignerLockTimeoutSeconds = positiveInteger(
-    env.CHAIN_SIGNER_LOCK_TIMEOUT_SECONDS,
-    "CHAIN_SIGNER_LOCK_TIMEOUT_SECONDS",
-    10
+  const chainGasLimit = parseOptionalGasLimit(env.CHAIN_GAS_LIMIT);
+  const chainMaxFeePerGas = parseOptionalGwei(
+    env.CHAIN_MAX_FEE_GWEI,
+    "CHAIN_MAX_FEE_GWEI"
+  );
+  const chainMaxPriorityFeePerGas = parseOptionalGwei(
+    env.CHAIN_MAX_PRIORITY_FEE_GWEI,
+    "CHAIN_MAX_PRIORITY_FEE_GWEI"
   );
 
   const mysqlSsl = booleanValue(env.MYSQL_SSL, production);
@@ -147,19 +144,19 @@ export function loadConfig(env = process.env) {
       throw configError("CHAIN_SIGNER_PRIVATE_KEY must be a 32-byte hex private key");
     }
 
-    if (production && (!chainMaxFeePerGasWei || !chainMaxPriorityFeePerGasWei)) {
-      throw configError(
-        "CHAIN_MAX_FEE_PER_GAS_WEI and CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI are required in production when blockchain is enabled"
-      );
-    }
+    validateFeePolicy({
+      gasLimit: chainGasLimit,
+      maxFeePerGas: chainMaxFeePerGas,
+      maxPriorityFeePerGas: chainMaxPriorityFeePerGas
+    });
 
-    if (
-      chainMaxFeePerGasWei &&
-      chainMaxPriorityFeePerGasWei &&
-      BigInt(chainMaxPriorityFeePerGasWei) > BigInt(chainMaxFeePerGasWei)
-    ) {
+    if (production && (
+      chainGasLimit === null ||
+      chainMaxFeePerGas === null ||
+      chainMaxPriorityFeePerGas === null
+    )) {
       throw configError(
-        "CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI must be <= CHAIN_MAX_FEE_PER_GAS_WEI"
+        "CHAIN_GAS_LIMIT, CHAIN_MAX_FEE_GWEI, and CHAIN_MAX_PRIORITY_FEE_GWEI are required when blockchain is enabled in production"
       );
     }
   }
@@ -214,10 +211,9 @@ export function loadConfig(env = process.env) {
     chainRpcUrls,
     chainId,
     chainConfirmations,
-    chainMaxFeePerGasWei,
-    chainMaxPriorityFeePerGasWei,
     chainGasLimit,
-    chainSignerLockTimeoutSeconds,
+    chainMaxFeePerGas,
+    chainMaxPriorityFeePerGas,
     anchorContractAddress,
     signerPrivateKey
   });
@@ -232,25 +228,4 @@ function parseRpcUrls(primaryValue, fallbackValue) {
     .filter(Boolean);
 
   return Object.freeze([...new Set(rawValues)]);
-}
-
-
-function parseUint256String(value, field) {
-  const raw = String(value).trim();
-
-  if (!/^\d+$/.test(raw)) {
-    throw configError(`${field} must be a decimal unsigned integer`);
-  }
-
-  try {
-    const parsed = BigInt(raw);
-
-    if (parsed < 0n || parsed > ((1n << 256n) - 1n)) {
-      throw new Error();
-    }
-
-    return parsed.toString();
-  } catch {
-    throw configError(`${field} must be a valid uint256 decimal value`);
-  }
 }
