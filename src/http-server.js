@@ -23,6 +23,7 @@ import { createApplicationMetrics, routeTemplate } from "./metrics.js";
 const config = loadConfig();
 
 const rateLimit = createRateLimiter({
+  windowMs: config.rateLimitWindowMs,
   maxRequests: config.rateLimitMax,
   maxClients: config.rateLimitMaxClients
 });
