@@ -49,6 +49,7 @@ Ambiguous blockchain/RPC outcomes must be reconciled rather than automatically t
 - MongoDB is a derived audit/read model.
 - Idempotency must be database-enforced.
 - Blockchain confirmation must be evidence-based.
+- Blockchain broadcast spending must be bounded by explicit gas and EIP-1559 fee ceilings in production.
 - Secrets must never be committed or persisted.
 - APIs require validation, authentication, authorization, rate limiting, secure headers, and safe errors.
 - Correlation must connect requestId, transactionId, eventId, and txHash.
