@@ -54,10 +54,12 @@ The repository was re-checked across:
 | SEC-29 | Single-RPC dependency and concurrent signer calls could create availability or nonce-collision risk | High | Added multi-RPC FallbackProvider support and process-local NonceManager serialization; distributed nonce coordination remains a deployment requirement |
 | SEC-30 | Confirmed transactions lacked durable canonical block evidence for post-confirmation reorg detection | High | Persist confirmed block number/hash, revalidate canonical block evidence, and recover transactions through the REORGED state |
 | SEC-31 | Confirmation could be attempted without durable blockchain evidence | Medium | Require a stored tx hash before blockchain confirmation and return a safe 409 response |
+| SEC-32 | Blockchain broadcasts had no explicit runtime gas/fee spending ceiling | Medium | Add configurable gas limit and EIP-1559 max-fee/max-priority-fee ceilings and require all three in production blockchain mode |
 
 ## Current observability controls
 
 - Authenticated `/metrics` endpoint.
+- Production blockchain broadcasts enforce explicit gas and fee ceilings.
 - Low-cardinality HTTP counters and latency histogram.
 - Broadcast and verification outcome telemetry.
 - Outbox event-lag and publish/failure telemetry.
