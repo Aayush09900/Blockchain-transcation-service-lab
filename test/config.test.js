@@ -236,9 +236,7 @@ test("production blockchain mode requires bounded fee policy", () => {
     CHAIN_RPC_URL: "https://rpc.example",
     CHAIN_ID: "11155111",
     ANCHOR_CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000001",
-    CHAIN_SIGNER_PRIVATE_KEY: testPrivateKey,
-    CHAIN_MAX_FEE_PER_GAS_WEI: "50000000000",
-    CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI: "2000000000"
+    CHAIN_SIGNER_PRIVATE_KEY: testPrivateKey
   };
 
   assert.throws(
@@ -246,10 +244,14 @@ test("production blockchain mode requires bounded fee policy", () => {
     /CHAIN_MAX_FEE_PER_GAS_WEI and CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI are required/
   );
 
-  const config = loadConfig({
+  const withPolicy = {
     ...base,
     CHAIN_MAX_FEE_PER_GAS_WEI: "50000000000",
-    CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI: "2000000000",
+    CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI: "2000000000"
+  };
+
+  const config = loadConfig({
+    ...withPolicy,
     CHAIN_GAS_LIMIT: "100000"
   });
 
@@ -260,7 +262,7 @@ test("production blockchain mode requires bounded fee policy", () => {
   assert.throws(
     () =>
       loadConfig({
-        ...base,
+        ...withPolicy,
         CHAIN_MAX_FEE_PER_GAS_WEI: "100",
         CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI: "101"
       }),
