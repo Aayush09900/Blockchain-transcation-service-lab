@@ -10,7 +10,8 @@
 - [x] Hardhat contract test suite
 - [x] Request validation
 - [x] Path security tests
-- [x] Rate-limit bounds
+- [x] Bounded local rate-limit guard
+- [x] Distributed MySQL-backed rate limiting
 - [x] Security headers
 - [x] Health/readiness
 - [x] Graceful shutdown
@@ -81,6 +82,20 @@ Do not run the production configuration without these infrastructure controls.
 The CI pipeline performs a logical MySQL backup and restore drill against the same MySQL version used by the integration environment. It dumps the authoritative schema/data, restores it into a clean database, and compares the `transactions` and `transaction_outbox` row counts.
 
 This proves the repository's schema is logically restorable. It does not replace managed database backups, point-in-time recovery, retention policy, or a production disaster-recovery exercise.
+
+### Distributed rate limiting
+
+The API keeps a bounded process-local limiter as a fast load-shed guard and also records a hashed client key in MySQL so separate API replicas share the same fixed-window request budget.
+
+The rate-limit table stores only a SHA-256 client identifier, not the source address itself. Its rows are operational state, not transaction ledger data.
+
+For existing databases, apply:
+
+```text
+db/mysql/004_rate_limit_clients.sql
+```
+
+Fresh databases receive the table through `db/mysql/001_init.sql`. The rate-limit state is intentionally not part of the authoritative transaction backup/restore set because it can be safely rebuilt after recovery.
 
 ## Blockchain confirmation worker
 
