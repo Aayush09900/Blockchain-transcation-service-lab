@@ -79,6 +79,39 @@ test("service-controlled submit broadcasts once and persists the returned hash",
   assert.equal(result.reused, false);
 });
 
+test("service submission executes blockchain work inside the distributed signer lock", async () => {
+  const recorder = createTransitionRecorder();
+  const calls = [];
+
+  const result = await submitViaBlockchain({
+    transaction: BASE_TRANSACTION,
+    blockchain: {
+      async broadcastAnchorTransaction() {
+        calls.push("broadcast");
+        return {
+          txHash: TX_HASH,
+          transactionId: BASE_TRANSACTION.id,
+          chainId: "31337"
+        };
+      }
+    },
+    transitionTransaction: recorder.transition,
+    withSubmissionLock: async (operation) => {
+      calls.push("lock-acquired");
+      const value = await operation();
+      calls.push("lock-released");
+      return value;
+    }
+  });
+
+  assert.equal(result.transaction.status, "SUBMITTED");
+  assert.deepEqual(calls, [
+    "lock-acquired",
+    "broadcast",
+    "lock-released"
+  ]);
+});
+
 test("repeated submit is idempotent after execution has started", async () => {
   const transaction = {
     ...BASE_TRANSACTION,
