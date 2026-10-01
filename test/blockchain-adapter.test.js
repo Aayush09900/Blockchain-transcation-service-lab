@@ -126,6 +126,40 @@ test("confirmed block evidence remains valid when receipt and canonical block ma
   assert.equal(result.reorged, false);
 });
 
+test("fee policy produces bounded EIP-1559 transaction overrides", () => {
+  const adapter = Object.create(EthersBlockchainAdapter.prototype);
+  adapter.maxFeePerGasWei = 50_000_000_000n;
+  adapter.maxPriorityFeePerGasWei = 2_000_000_000n;
+  adapter.gasLimit = 100_000n;
+
+  const overrides = adapter.buildFeeOverrides({
+    maxFeePerGas: 10_000_000_000n,
+    maxPriorityFeePerGas: 1_000_000_000n
+  });
+
+  assert.deepEqual(overrides, {
+    maxFeePerGas: 50_000_000_000n,
+    maxPriorityFeePerGas: 2_000_000_000n,
+    gasLimit: 100_000n
+  });
+});
+
+test("fee policy rejects network fees above configured maximum", () => {
+  const adapter = Object.create(EthersBlockchainAdapter.prototype);
+  adapter.maxFeePerGasWei = 50_000_000_000n;
+  adapter.maxPriorityFeePerGasWei = 2_000_000_000n;
+  adapter.gasLimit = null;
+
+  assert.throws(
+    () =>
+      adapter.buildFeeOverrides({
+        maxFeePerGas: 60_000_000_000n,
+        maxPriorityFeePerGas: 1_000_000_000n
+      }),
+    /current network fee exceeds configured max fee policy/
+  );
+});
+
 test("pending receipt is not treated as confirmation", async () => {
   const monitor = monitorFor({
     transaction: anchorTransaction(),
