@@ -24,7 +24,10 @@ export class EthersBlockchainAdapter {
     provider,
     signer,
     contractAddress,
-    confirmationDepth = 1
+    confirmationDepth = 1,
+    maxFeePerGasWei = null,
+    maxPriorityFeePerGasWei = null,
+    gasLimit = null
   }) {
     if (!provider) {
       throw new Error("ethers provider is required");
@@ -52,6 +55,26 @@ export class EthersBlockchainAdapter {
     this.signer =
       signer instanceof NonceManager ? signer : new NonceManager(signer);
     this.confirmationDepth = normalizedConfirmationDepth;
+    this.maxFeePerGasWei = normalizeUint256Option(
+      maxFeePerGasWei,
+      "maxFeePerGasWei"
+    );
+    this.maxPriorityFeePerGasWei = normalizeUint256Option(
+      maxPriorityFeePerGasWei,
+      "maxPriorityFeePerGasWei"
+    );
+    this.gasLimit = normalizeUint256Option(gasLimit, "gasLimit");
+
+    if (
+      this.maxFeePerGasWei !== null &&
+      this.maxPriorityFeePerGasWei !== null &&
+      this.maxPriorityFeePerGasWei > this.maxFeePerGasWei
+    ) {
+      throw new Error(
+        "maxPriorityFeePerGasWei must be <= maxFeePerGasWei"
+      );
+    }
+
     this.contractAddress = getAddress(contractAddress);
     this.contract = new Contract(this.contractAddress, ABI, this.signer);
   }
@@ -62,7 +85,11 @@ export class EthersBlockchainAdapter {
     privateKey = process.env.CHAIN_SIGNER_PRIVATE_KEY,
     contractAddress = process.env.ANCHOR_CONTRACT_ADDRESS,
     chainId,
-    confirmationDepth = process.env.CHAIN_CONFIRMATIONS ?? "1"
+    confirmationDepth = process.env.CHAIN_CONFIRMATIONS ?? "1",
+    maxFeePerGasWei = process.env.CHAIN_MAX_FEE_PER_GAS_WEI || null,
+    maxPriorityFeePerGasWei =
+      process.env.CHAIN_MAX_PRIORITY_FEE_PER_GAS_WEI || null,
+    gasLimit = process.env.CHAIN_GAS_LIMIT || null
   } = {}) {
     if (!privateKey || !contractAddress) {
       throw new Error(
@@ -82,8 +109,57 @@ export class EthersBlockchainAdapter {
       provider,
       signer,
       contractAddress,
-      confirmationDepth
+      confirmationDepth,
+      maxFeePerGasWei,
+      maxPriorityFeePerGasWei,
+      gasLimit
     });
+  }
+
+  buildFeeOverrides(feeData) {
+    const currentMaxFee =
+      feeData?.maxFeePerGas ?? feeData?.gasPrice ?? null;
+    const currentPriorityFee = feeData?.maxPriorityFeePerGas ?? null;
+
+    if (
+      this.maxFeePerGasWei !== null &&
+      currentMaxFee !== null &&
+      BigInt(currentMaxFee) > this.maxFeePerGasWei
+    ) {
+      const error = new Error("current network fee exceeds configured max fee policy");
+      error.code = "BLOCKCHAIN_FEE_POLICY_EXCEEDED";
+      error.statusCode = 503;
+      throw error;
+    }
+
+    if (
+      this.maxPriorityFeePerGasWei !== null &&
+      currentPriorityFee !== null &&
+      BigInt(currentPriorityFee) > this.maxPriorityFeePerGasWei
+    ) {
+      const error = new Error(
+        "current network priority fee exceeds configured max priority fee policy"
+      );
+      error.code = "BLOCKCHAIN_FEE_POLICY_EXCEEDED";
+      error.statusCode = 503;
+      throw error;
+    }
+
+    const overrides = {};
+
+    if (this.maxFeePerGasWei !== null) {
+      overrides.maxFeePerGas = this.maxFeePerGasWei;
+    }
+
+    if (this.maxPriorityFeePerGasWei !== null) {
+      overrides.maxPriorityFeePerGas = this.maxPriorityFeePerGasWei;
+    }
+
+    if (this.gasLimit !== null) {
+      overrides.gasLimit = this.gasLimit;
+    }
+
+    return overrides;
   }
 
   async healthCheck(expectedChainId) {
@@ -109,11 +185,15 @@ export class EthersBlockchainAdapter {
   }) {
     const bytes32Id = transactionIdToBytes32(transactionId);
 
+    const feeData = await this.provider.getFeeData();
+    const overrides = this.buildFeeOverrides(feeData);
+
     const transaction = await this.contract.anchor(
       bytes32Id,
       sender,
       receiver,
-      BigInt(amountWei)
+      BigInt(amountWei),
+      overrides
     );
 
     return {
@@ -647,4 +727,21 @@ export function createRpcProvider({ rpcUrl, rpcUrls, chainId }) {
     chainId ? Number(chainId) : undefined,
     { quorum: 1 }
   );
+}
+
+
+function normalizeUint256Option(value, field) {
+  if (value === null || value === undefined || value === "") return null;
+
+  try {
+    const parsed = BigInt(value);
+
+    if (parsed < 0n || parsed > ((1n << 256n) - 1n)) {
+      throw new Error();
+    }
+
+    return parsed;
+  } catch {
+    throw new Error(`${field} must be a valid uint256 value`);
+  }
 }
