@@ -69,6 +69,7 @@ jobs:
       - name: Syntax check
         run: |
           find src scripts test hardhat-tests -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+          bash -n scripts/mysql-backup-restore-smoke.sh
 
       - name: Application tests
         run: npm test
@@ -81,6 +82,12 @@ jobs:
 
       - name: Repository health check
         run: npm run verify
+
+      - name: MySQL backup and restore drill
+        run: bash scripts/mysql-backup-restore-smoke.sh
+        env:
+          MYSQL_DATABASE: blockchain_transactions
+          MYSQL_ROOT_PASSWORD: root
 
       - name: Build container
         run: docker build --tag blockchain-transaction-service:ci .
