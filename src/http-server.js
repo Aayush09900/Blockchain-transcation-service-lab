@@ -23,6 +23,7 @@ import { createApplicationMetrics, routeTemplate } from "./metrics.js";
 const config = loadConfig();
 
 const rateLimit = createRateLimiter({
+  windowMs: config.rateLimitWindowMs,
   maxRequests: config.rateLimitMax,
   maxClients: config.rateLimitMaxClients
 });
@@ -225,15 +226,6 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
-  const rate = rateLimit(clientKey(request));
-
-  if (!rate.allowed) {
-    json(response, requestId, 429, { error: "rate limit exceeded" }, {
-      "Retry-After": String(rate.retryAfterSeconds)
-    });
-    return;
-  }
-
   try {
     const parsedUrl = new URL(request.url ?? "/", "http://localhost");
     const pathname = parsedUrl.pathname;
@@ -256,6 +248,32 @@ const server = http.createServer(async (request, response) => {
 
       json(response, requestId, 200, {
         status: "ready"
+      });
+      return;
+    }
+
+    const requestClientKey = clientKey(request);
+    const localRate = rateLimit(requestClientKey);
+
+    if (!localRate.allowed) {
+      json(response, requestId, 429, { error: "rate limit exceeded" }, {
+        "Retry-After": String(localRate.retryAfterSeconds)
+      });
+      return;
+    }
+
+    const distributedRate = await mysqlStore.consumeRateLimit(
+      requestClientKey,
+      {
+        windowMs: config.rateLimitWindowMs,
+        maxRequests: config.rateLimitMax,
+        maxClients: config.rateLimitMaxClients
+      }
+    );
+
+    if (!distributedRate.allowed) {
+      json(response, requestId, 429, { error: "rate limit exceeded" }, {
+        "Retry-After": String(distributedRate.retryAfterSeconds)
       });
       return;
     }
