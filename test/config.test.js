@@ -4,6 +4,30 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { loadConfig } from "../src/config.js";
 
+test("rate limit window is configurable and bounded", () => {
+  const base = {
+    NODE_ENV: "development",
+    API_TOKEN: "",
+    MYSQL_URL: "",
+    MONGO_URL: "",
+    BLOCKCHAIN_ENABLED: "false"
+  };
+
+  const config = loadConfig({
+    ...base,
+    RATE_LIMIT_WINDOW_MS: "120000"
+  });
+
+  assert.equal(config.rateLimitWindowMs, 120_000);
+
+  for (const value of ["999", "3600001", "not-a-number"]) {
+    assert.throws(
+      () => loadConfig({ ...base, RATE_LIMIT_WINDOW_MS: value }),
+      /RATE_LIMIT_WINDOW_MS/
+    );
+  }
+});
+
 test("development configuration accepts MySQL and MongoDB settings", () => {
   const config = loadConfig({
     NODE_ENV: "development",

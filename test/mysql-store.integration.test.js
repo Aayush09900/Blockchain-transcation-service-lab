@@ -45,8 +45,13 @@ test(
 
     try {
       const fs = await import("node:fs/promises");
-      const sql = await fs.readFile("db/mysql/001_init.sql", "utf8");
-      await connection.query(sql);
+      for (const schemaFile of [
+        "db/mysql/001_init.sql",
+        "db/mysql/005_rate_limit_clients.sql"
+      ]) {
+        const sql = await fs.readFile(schemaFile, "utf8");
+        await connection.query(sql);
+      }
     } finally {
       connection.release();
       await pool.end();
@@ -70,6 +75,81 @@ test(
     const key = "integration-" + id;
 
     try {
+
+    await poolForTest(mysqlUrl, async (testPool) => {
+      await testPool.query("TRUNCATE TABLE rate_limit_clients");
+    });
+
+    const rateLimitKey = "integration-rate-" + id;
+    const rateLimitOptions = {
+      windowMs: 1_000,
+      maxRequests: 2,
+      maxClients: 10
+    };
+
+    assert.equal(
+      (
+        await store.consumeRateLimit(
+          rateLimitKey,
+          rateLimitOptions
+        )
+      ).allowed,
+      true
+    );
+
+    assert.equal(
+      (
+        await store.consumeRateLimit(
+          rateLimitKey,
+          rateLimitOptions
+        )
+      ).allowed,
+      true
+    );
+
+    const globallyDenied = await competingStore.consumeRateLimit(
+      rateLimitKey,
+      rateLimitOptions
+    );
+
+    assert.equal(globallyDenied.allowed, false);
+    assert.equal(globallyDenied.remaining, 0);
+    assert.equal(globallyDenied.retryAfterSeconds >= 1, true);
+
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+
+    assert.equal(
+      (
+        await competingStore.consumeRateLimit(
+          rateLimitKey,
+          rateLimitOptions
+        )
+      ).allowed,
+      true
+    );
+
+    const capOptions = {
+      windowMs: 60_000,
+      maxRequests: 10,
+      maxClients: 2
+    };
+
+    await poolForTest(mysqlUrl, async (testPool) => {
+      await testPool.query("TRUNCATE TABLE rate_limit_clients");
+    });
+
+    await store.consumeRateLimit("cap-a-" + id, capOptions);
+    await store.consumeRateLimit("cap-b-" + id, capOptions);
+    await store.consumeRateLimit("cap-c-" + id, capOptions);
+
+    await poolForTest(mysqlUrl, async (testPool) => {
+      const [rows] = await testPool.execute(
+        "SELECT COUNT(*) AS client_count FROM rate_limit_clients"
+      );
+
+      assert.equal(Number(rows[0].client_count) <= 2, true);
+    });
+
       const first = await store.createOrGet({
         id,
         idempotencyKey: key,

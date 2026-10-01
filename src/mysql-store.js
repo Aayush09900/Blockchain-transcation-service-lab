@@ -1,5 +1,5 @@
 import mysql from "mysql2/promise";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   requireNonEmptyString,
   validateTransactionInput,
@@ -71,6 +71,252 @@ export class MySqlTransactionStore {
   async healthCheck() {
     const [rows] = await this.pool.execute("SELECT 1 AS ok");
     return rows[0]?.ok === 1;
+  }
+
+
+  async consumeRateLimit(
+    clientKey,
+    {
+      windowMs = 60_000,
+      maxRequests = 60,
+      maxClients = 10_000
+    } = {}
+  ) {
+    const safeWindowMs = Number(windowMs);
+    const safeMaxRequests = Number(maxRequests);
+    const safeMaxClients = Number(maxClients);
+    const safeWindowMicros = safeWindowMs * 1000;
+
+    if (
+      !Number.isInteger(safeWindowMs) ||
+      safeWindowMs < 1_000 ||
+      safeWindowMs > 3_600_000
+    ) {
+      const error = new Error(
+        "windowMs must be between 1000 and 3600000 milliseconds"
+      );
+      error.code = "CONFIG_ERROR";
+      error.statusCode = 500;
+      throw error;
+    }
+
+    if (
+      !Number.isInteger(safeMaxRequests) ||
+      safeMaxRequests < 1 ||
+      safeMaxRequests > 1_000_000
+    ) {
+      const error = new Error(
+        "maxRequests must be between 1 and 1000000"
+      );
+      error.code = "CONFIG_ERROR";
+      error.statusCode = 500;
+      throw error;
+    }
+
+    if (
+      !Number.isInteger(safeMaxClients) ||
+      safeMaxClients < 1 ||
+      safeMaxClients > 100_000
+    ) {
+      const error = new Error(
+        "maxClients must be between 1 and 100000"
+      );
+      error.code = "CONFIG_ERROR";
+      error.statusCode = 500;
+      throw error;
+    }
+
+    const normalizedClientKey = String(clientKey || "unknown").slice(0, 512);
+    const clientHash = createHash("sha256")
+      .update(normalizedClientKey, "utf8")
+      .digest("hex");
+
+    const connection = await this.pool.getConnection();
+
+    try {
+      let inserted = false;
+
+      const [existingRows] = await connection.execute(
+        "SELECT request_count, window_started_at FROM rate_limit_clients WHERE client_hash = ?",
+        [clientHash]
+      );
+
+      if (existingRows.length === 0) {
+        const [lockRows] = await connection.execute(
+          "SELECT GET_LOCK(?, 1) AS acquired",
+          ["rate-limit:clients-cap"]
+        );
+
+        if (Number(lockRows[0]?.acquired) !== 1) {
+          const error = new Error(
+            "distributed rate-limit backend is temporarily unavailable"
+          );
+          error.code = "RATE_LIMIT_BACKEND_UNAVAILABLE";
+          error.statusCode = 503;
+          throw error;
+        }
+
+        try {
+          const [recheckRows] = await connection.execute(
+            "SELECT request_count, window_started_at FROM rate_limit_clients WHERE client_hash = ? FOR UPDATE",
+            [clientHash]
+          );
+
+          if (recheckRows.length === 0) {
+            await connection.execute(
+              "DELETE FROM rate_limit_clients WHERE TIMESTAMPDIFF(MICROSECOND, last_seen_at, CURRENT_TIMESTAMP(6)) >= ?",
+              [safeWindowMicros]
+            );
+
+            const [countRows] = await connection.execute(
+              "SELECT COUNT(*) AS client_count FROM rate_limit_clients"
+            );
+
+            const currentClientCount = Number(
+              countRows[0]?.client_count ?? 0
+            );
+
+            const evictionCount = Math.max(
+              0,
+              currentClientCount - safeMaxClients + 1
+            );
+
+            if (evictionCount > 0) {
+              await connection.query(
+                "DELETE FROM rate_limit_clients ORDER BY last_seen_at ASC LIMIT " +
+                  String(evictionCount)
+              );
+            }
+
+            await connection.execute(
+              "INSERT INTO rate_limit_clients (client_hash, window_started_at, request_count, last_seen_at) VALUES (?, CURRENT_TIMESTAMP(6), 1, CURRENT_TIMESTAMP(6))",
+              [clientHash]
+            );
+
+            inserted = true;
+          }
+        } finally {
+          await connection.execute(
+            "SELECT RELEASE_LOCK(?) AS released",
+            ["rate-limit:clients-cap"]
+          );
+        }
+      }
+
+      if (inserted) {
+        return {
+          allowed: true,
+          remaining: Math.max(0, safeMaxRequests - 1),
+          retryAfterSeconds: Math.ceil(safeWindowMs / 1000)
+        };
+      }
+
+      const [updateResult] = await connection.execute(
+        "UPDATE rate_limit_clients SET request_count = CASE WHEN TIMESTAMPDIFF(MICROSECOND, window_started_at, CURRENT_TIMESTAMP(6)) >= ? THEN 1 WHEN request_count < ? THEN request_count + 1 ELSE request_count END, window_started_at = CASE WHEN TIMESTAMPDIFF(MICROSECOND, window_started_at, CURRENT_TIMESTAMP(6)) >= ? THEN CURRENT_TIMESTAMP(6) ELSE window_started_at END, last_seen_at = CURRENT_TIMESTAMP(6) WHERE client_hash = ?",
+        [
+          safeWindowMicros,
+          safeMaxRequests + 1,
+          safeWindowMicros,
+          clientHash
+        ]
+      );
+
+      if (Number(updateResult.affectedRows) !== 1) {
+        const [lockRows] = await connection.execute(
+          "SELECT GET_LOCK(?, 1) AS acquired",
+          ["rate-limit:clients-cap"]
+        );
+
+        if (Number(lockRows[0]?.acquired) !== 1) {
+          const error = new Error(
+            "distributed rate-limit backend is temporarily unavailable"
+          );
+          error.code = "RATE_LIMIT_BACKEND_UNAVAILABLE";
+          error.statusCode = 503;
+          throw error;
+        }
+
+        try {
+          const [recheckRows] = await connection.execute(
+            "SELECT request_count, window_started_at FROM rate_limit_clients WHERE client_hash = ? FOR UPDATE",
+            [clientHash]
+          );
+
+          if (recheckRows.length === 0) {
+            await connection.execute(
+              "DELETE FROM rate_limit_clients WHERE TIMESTAMPDIFF(MICROSECOND, last_seen_at, CURRENT_TIMESTAMP(6)) >= ?",
+              [safeWindowMicros]
+            );
+
+            const [countRows] = await connection.execute(
+              "SELECT COUNT(*) AS client_count FROM rate_limit_clients"
+            );
+
+            const currentClientCount = Number(
+              countRows[0]?.client_count ?? 0
+            );
+
+            const evictionCount = Math.max(
+              0,
+              currentClientCount - safeMaxClients + 1
+            );
+
+            if (evictionCount > 0) {
+              await connection.query(
+                "DELETE FROM rate_limit_clients ORDER BY last_seen_at ASC LIMIT " +
+                  String(evictionCount)
+              );
+            }
+
+            await connection.execute(
+              "INSERT INTO rate_limit_clients (client_hash, window_started_at, request_count, last_seen_at) VALUES (?, CURRENT_TIMESTAMP(6), 1, CURRENT_TIMESTAMP(6))",
+              [clientHash]
+            );
+            inserted = true;
+          }
+        } finally {
+          await connection.execute(
+            "SELECT RELEASE_LOCK(?) AS released",
+            ["rate-limit:clients-cap"]
+          );
+        }
+
+        if (inserted) {
+          return {
+            allowed: true,
+            remaining: Math.max(0, safeMaxRequests - 1),
+            retryAfterSeconds: Math.ceil(safeWindowMs / 1000)
+          };
+        }
+      }
+
+      const [rows] = await connection.execute(
+        "SELECT request_count, GREATEST(1, CEIL((? - TIMESTAMPDIFF(MICROSECOND, window_started_at, CURRENT_TIMESTAMP(6))) / 1000000)) AS retry_after_seconds FROM rate_limit_clients WHERE client_hash = ?",
+        [safeWindowMicros, clientHash]
+      );
+
+      if (rows.length === 0) {
+        const error = new Error(
+          "distributed rate-limit state disappeared during evaluation"
+        );
+        error.code = "RATE_LIMIT_BACKEND_UNAVAILABLE";
+        error.statusCode = 503;
+        throw error;
+      }
+
+      const requestCount = Number(rows[0].request_count);
+
+      return {
+        allowed: requestCount <= safeMaxRequests,
+        remaining: Math.max(0, safeMaxRequests - requestCount),
+        retryAfterSeconds:
+          requestCount <= safeMaxRequests
+            ? 0
+            : Number(rows[0].retry_after_seconds)
+      };
+    } finally {
+      connection.release();
+    }
   }
 
   async withAdvisoryLock(lockName, timeoutSeconds, fn) {
