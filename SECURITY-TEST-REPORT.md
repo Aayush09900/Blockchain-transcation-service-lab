@@ -95,6 +95,8 @@ The service still rejects traversal-style payloads because hostile path input sh
 
 ## Remaining production risks
 
+Repository-level backup/restore coverage is now exercised in CI: a MySQL 8.4 logical data backup is restored into a clean schema and verified by row counts, content fingerprints, and outbox referential integrity. This does not replace managed database backup retention, point-in-time recovery, or a production disaster-recovery restore exercise.
+
 The project is a production-oriented engineering lab, not a live custody platform.
 
 Remaining controls for real-money usage:
