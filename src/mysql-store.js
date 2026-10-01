@@ -225,6 +225,50 @@ export class MySqlTransactionStore {
     return rows.map(mapRow);
   }
 
+  async listStaleBroadcasting(before, limit = 100) {
+    if (!(before instanceof Date) || Number.isNaN(before.getTime())) {
+      const error = new Error("before must be a valid Date");
+      error.code = "VALIDATION_ERROR";
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
+
+    const [rows] = await this.pool.query(
+      `SELECT *
+       FROM transactions
+       WHERE status = 'BROADCASTING'
+         AND updated_at < ?
+         AND reconciliation_required_at IS NULL
+       ORDER BY updated_at ASC
+       LIMIT ?`,
+      [before, safeLimit]
+    );
+
+    return rows.map(mapRow);
+  }
+
+  async markBroadcastReconciliationRequired(id, reason) {
+    const normalizedReason = requireNonEmptyString(
+      reason,
+      "reason",
+      500
+    );
+
+    const [result] = await this.pool.execute(
+      `UPDATE transactions
+       SET reconciliation_required_at = CURRENT_TIMESTAMP(6),
+           reconciliation_reason = ?
+       WHERE id = ?
+         AND status = 'BROADCASTING'
+         AND reconciliation_required_at IS NULL`,
+      [normalizedReason, id]
+    );
+
+    return Number(result.affectedRows) === 1;
+  }
+
   async listConfirmed(limit = 100) {
     const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
 
@@ -378,6 +422,8 @@ export class MySqlTransactionStore {
              confirmed_block_number = ?,
              confirmed_block_hash = ?,
              failure_reason = ?,
+             reconciliation_required_at = NULL,
+             reconciliation_reason = NULL,
              attempts = ?,
              updated_at = CURRENT_TIMESTAMP(6)
          WHERE id = ?`,
@@ -581,6 +627,12 @@ function mapRow(row) {
         : Number(row.confirmed_block_number),
     confirmedBlockHash: row.confirmed_block_hash,
     failureReason: row.failure_reason,
+    reconciliationRequiredAt:
+      row.reconciliation_required_at === null ||
+      row.reconciliation_required_at === undefined
+        ? null
+        : new Date(row.reconciliation_required_at).toISOString(),
+    reconciliationReason: row.reconciliation_reason,
     attempts: Number(row.attempts),
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString()
