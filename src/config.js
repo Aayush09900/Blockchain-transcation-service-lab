@@ -51,6 +51,15 @@ export function loadConfig(env = process.env) {
     env.MONGO_DATABASE ?? "blockchain_transaction_audit"
   ).trim();
   const corsOrigin = String(env.CORS_ORIGIN ?? "").trim();
+  const rateLimitWindowMs = positiveInteger(
+    env.RATE_LIMIT_WINDOW_MS,
+    "RATE_LIMIT_WINDOW_MS",
+    60_000
+  );
+
+  if (rateLimitWindowMs < 1_000 || rateLimitWindowMs > 3_600_000) {
+    throw configError("RATE_LIMIT_WINDOW_MS must be between 1000 and 3600000 milliseconds");
+  }
 
   const blockchainEnabled = booleanValue(env.BLOCKCHAIN_ENABLED, false);
   const chainRpcUrls = parseRpcUrls(
@@ -196,6 +205,7 @@ export function loadConfig(env = process.env) {
     mongoDatabase,
     corsOrigin,
     rateLimitMax: positiveInteger(env.RATE_LIMIT_MAX, "RATE_LIMIT_MAX", 60),
+    rateLimitWindowMs,
     rateLimitMaxClients: positiveInteger(
       env.RATE_LIMIT_MAX_CLIENTS,
       "RATE_LIMIT_MAX_CLIENTS",
