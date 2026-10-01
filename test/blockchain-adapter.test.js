@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { FallbackProvider } from "ethers";
 import { id, Interface } from "ethers";
 import {
+  EthersBlockchainAdapter,
   EthersReceiptMonitor,
   createRpcProvider
 } from "../src/blockchain-adapter.js";
