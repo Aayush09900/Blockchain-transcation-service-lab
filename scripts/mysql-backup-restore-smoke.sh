@@ -138,81 +138,77 @@ query_orphaned_outbox() {
     -e "SELECT COUNT(*) FROM \`$database\`.transaction_outbox o LEFT JOIN \`$database\`.transactions t ON t.id = o.transaction_id WHERE t.id IS NULL;"
 }
 
-query_fingerprints() {
+query_fingerprint() {
   local database="$1"
+  local table="$2"
 
-  mysql_root --batch --skip-column-names \
-    -e "
-      SELECT
-        COALESCE(
-          SHA2(
-            GROUP_CONCAT(
-              SHA2(
-                CONCAT_WS(
-                  CHAR(0),
-                  id,
-                  idempotency_key,
-                  sender,
-                  receiver,
-                  amount,
-                  status,
-                  tx_hash,
-                  confirmed_block_number,
-                  confirmed_block_hash,
-                  failure_reason,
-                  attempts,
-                  created_at,
-                  updated_at
-                ),
-                256
-              )
-              ORDER BY id
-              SEPARATOR ''
+  case "$table" in
+    transactions)
+      mysql_root --batch --skip-column-names \
+        -e "
+          SELECT SHA2(
+            CONCAT_WS(
+              CHAR(0),
+              id,
+              idempotency_key,
+              sender,
+              receiver,
+              amount,
+              status,
+              tx_hash,
+              confirmed_block_number,
+              confirmed_block_hash,
+              failure_reason,
+              attempts,
+              created_at,
+              updated_at
             ),
             256
-          ),
-          SHA2('', 256)
-        )
-      FROM \`$database\`.transactions;
-
-      SELECT
-        COALESCE(
-          SHA2(
-            GROUP_CONCAT(
-              SHA2(
-                CONCAT_WS(
-                  CHAR(0),
-                  id,
-                  event_id,
-                  transaction_id,
-                  event_type,
-                  CAST(payload AS CHAR),
-                  attempts,
-                  last_error,
-                  next_attempt_at,
-                  dead_lettered_at,
-                  published_at,
-                  claimed_by,
-                  claimed_until,
-                  created_at
-                ),
-                256
-              )
-              ORDER BY id
-              SEPARATOR ''
+          )
+          FROM \`$database\`.transactions
+          ORDER BY id;
+        " | sha256sum | awk '{print $1}'
+      ;;
+    transaction_outbox)
+      mysql_root --batch --skip-column-names \
+        -e "
+          SELECT SHA2(
+            CONCAT_WS(
+              CHAR(0),
+              id,
+              event_id,
+              transaction_id,
+              event_type,
+              CAST(payload AS CHAR),
+              attempts,
+              last_error,
+              next_attempt_at,
+              dead_lettered_at,
+              published_at,
+              claimed_by,
+              claimed_until,
+              created_at
             ),
             256
-          ),
-          SHA2('', 256)
-        )
-      FROM \`$database\`.transaction_outbox;
-    "
+          )
+          FROM \`$database\`.transaction_outbox
+          ORDER BY id;
+        " | sha256sum | awk '{print $1}'
+      ;;
+    *)
+      echo "unsupported fingerprint table: $table" >&2
+      return 1
+      ;;
+  esac
 }
+
 
 ORIGINAL_COUNTS="$(query_counts "$MYSQL_DATABASE")"
 RESTORED_COUNTS="$(query_counts "$MYSQL_RESTORE_DATABASE")"
-ORIGINAL_FINGERPRINTS="$(query_fingerprints "$MYSQL_DATABASE")"
-RESTORED_FINGERPRINTS="$(query_fingerprints "$MYSQL_RESTORE_DATABASE")"
+ORIGINAL_TX_FINGERPRINT="$(query_fingerprint "$MYSQL_DATABASE" transactions)"
+RESTORED_TX_FINGERPRINT="$(query_fingerprint "$MYSQL_RESTORE_DATABASE" transactions)"
+ORIGINAL_OUTBOX_FINGERPRINT="$(query_fingerprint "$MYSQL_DATABASE" transaction_outbox)"
+RESTORED_OUTBOX_FINGERPRINT="$(query_fingerprint "$MYSQL_RESTORE_DATABASE" transaction_outbox)"
 ORPHANED_OUTBOX="$(query_orphaned_outbox "$MYSQL_RESTORE_DATABASE")"
 
 if [[ "$ORIGINAL_COUNTS" != "$RESTORED_COUNTS" ]]; then
@@ -224,12 +220,17 @@ if [[ "$ORIGINAL_COUNTS" != "$RESTORED_COUNTS" ]]; then
   exit 1
 fi
 
-if [[ "$ORIGINAL_FINGERPRINTS" != "$RESTORED_FINGERPRINTS" ]]; then
-  echo "backup/restore content verification failed" >&2
-  echo "original fingerprints:" >&2
-  printf '%s\n' "$ORIGINAL_FINGERPRINTS" >&2
-  echo "restored fingerprints:" >&2
-  printf '%s\n' "$RESTORED_FINGERPRINTS" >&2
+if [[ "$ORIGINAL_TX_FINGERPRINT" != "$RESTORED_TX_FINGERPRINT" ]]; then
+  echo "transactions backup/restore content verification failed" >&2
+  echo "original fingerprint: $ORIGINAL_TX_FINGERPRINT" >&2
+  echo "restored fingerprint: $RESTORED_TX_FINGERPRINT" >&2
+  exit 1
+fi
+
+if [[ "$ORIGINAL_OUTBOX_FINGERPRINT" != "$RESTORED_OUTBOX_FINGERPRINT" ]]; then
+  echo "transaction_outbox backup/restore content verification failed" >&2
+  echo "original fingerprint: $ORIGINAL_OUTBOX_FINGERPRINT" >&2
+  echo "restored fingerprint: $RESTORED_OUTBOX_FINGERPRINT" >&2
   exit 1
 fi
 
