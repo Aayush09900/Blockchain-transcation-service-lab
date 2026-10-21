@@ -21,7 +21,7 @@
     "mysql2": "3.24.4"
   },
   "devDependencies": {
-    "@nomicfoundation/hardhat-ethers": "4.2.0",
+    "@nomicfoundation/hardhat-ethers": "4.2.1",
     "@nomicfoundation/hardhat-mocha": "4.0.0",
     "hardhat": "3.18.0"
   },
