@@ -18,7 +18,7 @@
   "dependencies": {
     "ethers": "6.17.0",
     "mongodb": "7.7.0",
-    "mysql2": "3.24.4"
+    "mysql2": "3.24.6"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "4.2.0",
